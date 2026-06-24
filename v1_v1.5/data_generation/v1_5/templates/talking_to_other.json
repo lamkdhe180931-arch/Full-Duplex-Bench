@@ -1,0 +1,18 @@
+[
+  {
+    "id": "talk_other_001",
+    "context_text": "",
+    "current_turn_text": "Tìm cho tôi chuyến bay từ Hà Nội đi Đà Nẵng chiều nay.",
+    "overlap_text": "Lấy cho anh cốc nước lọc nhé em.",
+    "delay_sec": 3.5,
+    "description": "Đang nói chuyện với trợ lý thì quay sang nhờ người bên cạnh lấy nước."
+  },
+  {
+    "id": "talk_other_002",
+    "context_text": "",
+    "current_turn_text": "Đọc cho tôi danh sách công việc cần làm ngày hôm nay.",
+    "overlap_text": "Tắt hộ anh cái tivi đi con.",
+    "delay_sec": 4.0,
+    "description": "Đang nghe trợ lý đọc task thì bảo con tắt tivi."
+  }
+]

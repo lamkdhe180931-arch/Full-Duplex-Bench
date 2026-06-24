@@ -1,0 +1,20 @@
+[
+  {
+    "id": "bg_speech_001",
+    "context_text": "",
+    "current_turn_text": "Hôm nay giá vàng trong nước có biến động gì nhiều không bạn?",
+    "overlap_text": "Bóng đá Việt Nam hôm nay thắng đậm ba không.",
+    "delay_sec": 1.5,
+    "bg_gain": -12,
+    "description": "Nhiễu giọng nói của người khác trên tivi ở nền (nhiễu âm lượng nhỏ)."
+  },
+  {
+    "id": "bg_speech_002",
+    "context_text": "",
+    "current_turn_text": "Đặt cho tôi một lịch nhắc họp lúc chín giờ sáng mai nhé.",
+    "overlap_text": "Mẹ ơi hôm nay nhà mình ăn món gì thế ạ?",
+    "delay_sec": 2.0,
+    "bg_gain": -10,
+    "description": "Tiếng trẻ con nói chuyện ở nền xung quanh khi người dùng đang ra lệnh."
+  }
+]

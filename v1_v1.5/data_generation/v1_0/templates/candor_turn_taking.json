@@ -1,0 +1,17 @@
+[
+  {
+    "id": "turn_001",
+    "text": "Thủ đô của Việt Nam là thành phố nào vậy?",
+    "description": "Câu hỏi thông tin đơn giản."
+  },
+  {
+    "id": "turn_002",
+    "text": "Hãy kể cho tôi nghe một câu chuyện cười ngắn.",
+    "description": "Câu yêu cầu kể chuyện."
+  },
+  {
+    "id": "turn_003",
+    "text": "Trái Đất cách Mặt Trời khoảng bao nhiêu ki lô mét?",
+    "description": "Câu hỏi kiến thức khoa học."
+  }
+]

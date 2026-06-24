@@ -1,0 +1,5 @@
+pydub
+edge-tts
+gTTS
+openai
+python-dotenv

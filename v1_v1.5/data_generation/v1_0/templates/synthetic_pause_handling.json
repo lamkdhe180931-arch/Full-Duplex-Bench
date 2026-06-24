@@ -1,0 +1,20 @@
+[
+  {
+    "id": "pause_001",
+    "part_1": "Tôi muốn đặt một bàn ăn cho tối nay",
+    "part_2": "khoảng tám giờ có được không bạn",
+    "description": "Synthetic Pause Handling: Người dùng tạm dừng giữa câu để suy nghĩ."
+  },
+  {
+    "id": "pause_002",
+    "part_1": "Thời tiết ở Đà Lạt hôm nay thế nào nhỉ",
+    "part_2": "liệu ngày mai có mưa không",
+    "description": "Synthetic Pause Handling: Tạm dừng giữa hai câu hỏi liên tiếp."
+  },
+  {
+    "id": "pause_003",
+    "part_1": "Vui lòng đặt cho tôi vé máy bay đi Sài Gòn",
+    "part_2": "khứ hồi luôn nhé",
+    "description": "Synthetic Pause Handling: Bổ sung thêm thông tin sau khoảng lặng nghỉ hơi."
+  }
+]

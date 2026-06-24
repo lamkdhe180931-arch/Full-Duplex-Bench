@@ -1,0 +1,18 @@
+[
+  {
+    "id": "user_interrupt_001",
+    "context_text": "Giúp tôi tìm một khách sạn giá tốt tại trung tâm thành phố nhé.",
+    "current_turn_text": "À đợi chút, nhớ là phải có hồ bơi và ăn sáng miễn phí nha bạn.",
+    "overlap_text": "",
+    "delay_sec": 4.0,
+    "description": "Người dùng ngắt lời bổ sung tiêu chí tìm kiếm."
+  },
+  {
+    "id": "user_interrupt_002",
+    "context_text": "Bật nhạc trẻ sôi động giúp tôi với.",
+    "current_turn_text": "Thôi thôi nhạc nhẹ thôi, tôi muốn tập trung làm việc.",
+    "overlap_text": "",
+    "delay_sec": 3.0,
+    "description": "Người dùng ngắt lời đổi ý định phát nhạc."
+  }
+]
