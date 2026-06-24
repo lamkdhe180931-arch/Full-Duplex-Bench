@@ -18,12 +18,16 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
     json_name = audio_name.rsplit(".", 1)[0] + ".json"
 
     # Load the pretrained PhoWhisper model and move to GPU
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
+    if torch.cuda.is_available():
+        # Dùng GPU số 2 (cuda:1) nếu có 2 GPU để tránh tranh chấp bộ nhớ với GPU số 1 (cuda:0)
+        device = "cuda:1" if torch.cuda.device_count() > 1 else "cuda:0"
+
     pipe = pipeline(
         "automatic-speech-recognition",
         model="vinai/PhoWhisper-medium",
         chunk_length_s=30,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        torch_dtype=torch.float16 if "cuda" in device else torch.float32,
         device=device,
     )
 
@@ -97,7 +101,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         import gc
         del prediction
         gc.collect()
-        if device == "cuda":
+        if "cuda" in device:
             torch.cuda.empty_cache()
 
 
