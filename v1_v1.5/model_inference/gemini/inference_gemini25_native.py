@@ -91,6 +91,7 @@ class SynchronizedRecorder:
         # Stats
         self.audio_bytes_written = 0
         self.silence_samples_written = 0
+        self.current_sender_time = 0.0
     
     async def add(self, pcm: bytes):
         """Add audio data. Un-mutes if muted."""
@@ -153,6 +154,11 @@ class SynchronizedRecorder:
                     # Write silence (but only if we haven't reached target yet)
                     if self.count >= self.target_samples:
                         # Wait a bit before checking again
+                        await asyncio.sleep(0.01)
+                        continue
+                    
+                    # Pacify silence writing based on sender's progress to ensure alignment during cooldowns
+                    if self.count / self.out_sr >= self.current_sender_time:
                         await asyncio.sleep(0.01)
                         continue
                     
@@ -251,6 +257,9 @@ async def run_session(
             while idx < total and not session_done:
                 chunk = chunks[idx]
                 
+                # Update recorder timeline alignment
+                recorder.current_sender_time = idx * chunk_duration
+                
                 # REMOVED: Client-side Noise Gate
                 
                 await sess.send_realtime_input(
@@ -348,6 +357,9 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     session_id = 1
     
     while chunk_idx < total_chunks:
+        if session_id > 1:
+            print(f"[DEBUG] Cooldown sleep 2.0s before Session {session_id} to avoid concurrent connection limit")
+            await asyncio.sleep(2.0)
         try:
             new_idx = await run_session(
                 client, session_id, chunks, chunk_idx, recorder, session_start_time

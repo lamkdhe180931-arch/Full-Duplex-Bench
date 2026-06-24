@@ -104,6 +104,7 @@ async def run_session(
         async def sender():
             nonlocal idx, session_done
             while idx < total and not session_done:
+                recorder.current_sender_time = idx * chunk_duration
                 await sess.send_realtime_input(
                     audio={"data": chunks[idx], "mime_type": "audio/pcm"}
                 )
@@ -188,6 +189,9 @@ async def process_single_file(input_wav: str, output_wav: str, config: dict, ove
     session_id = 1
 
     while chunk_idx < total_chunks:
+        if session_id > 1:
+            print(f"[DEBUG] Cooldown sleep 2.0s before Session {session_id} to avoid concurrent connection limit")
+            await asyncio.sleep(2.0)
         try:
             new_idx = await run_session(
                 client, config, session_id, chunks, chunk_idx, recorder, session_start_time
