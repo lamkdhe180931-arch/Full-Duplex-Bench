@@ -32,9 +32,15 @@ def generate_pause_handling(generator, mixer, templates, output_base):
         p1_sound = mixer.load_audio(p1_path)
         len_p1_sec = len(p1_sound) / 1000.0
         
-        # 3. Ghép nối 2 part bằng khoảng lặng ở giữa
+        # 3. Ghép nối 2 part bằng khoảng lặng ở giữa và thêm 15 giây lặng phía sau
         input_wav_path = os.path.join(sample_dir, "input.wav")
         mixer.concat_with_silence([p1_path, p2_path], pause_duration, input_wav_path)
+        
+        # Thêm 15 giây im lặng ở cuối cho phản hồi của Agent
+        combined_sound = mixer.load_audio(input_wav_path)
+        trailing_silence = AudioSegment.silent(duration=15000, frame_rate=16000)
+        combined_sound_with_silence = combined_sound + trailing_silence
+        mixer.save_audio(combined_sound_with_silence, input_wav_path)
         
         # 4. Ghi file chú thích pause.json
         pause_info = [
@@ -72,6 +78,11 @@ def generate_turn_taking(generator, mixer, templates, output_base):
         sound = mixer.load_audio(input_wav_path)
         len_sound_sec = len(sound) / 1000.0
         
+        # Thêm 15 giây im lặng ở cuối câu thoại đầu vào cho phản hồi của Agent
+        trailing_silence = AudioSegment.silent(duration=15000, frame_rate=16000)
+        sound_with_silence = sound + trailing_silence
+        mixer.save_audio(sound_with_silence, input_wav_path)
+        
         # 3. Ghi file chú thích turn_taking.json (mốc kết thúc tại timestamp[0])
         turn_info = [
             {
@@ -108,9 +119,15 @@ def generate_user_interruption(generator, mixer, templates, output_base):
         
         interrupt_delay = item["interrupt_delay_sec"]
         
-        # input.wav = context + khoảng lặng (mô phỏng lúc agent trả lời và bị ngắt) + interrupt
+        # input.wav = context + khoảng lặng (mô phỏng lúc agent trả lời và bị ngắt) + interrupt + 15 giây lặng phía sau
         input_wav_path = os.path.join(sample_dir, "input.wav")
         mixer.concat_with_silence([context_wav_path, interrupt_wav_path], interrupt_delay, input_wav_path)
+        
+        # Thêm 15 giây im lặng ở cuối cho phản hồi của Agent sau khi bị ngắt
+        combined_sound = mixer.load_audio(input_wav_path)
+        trailing_silence = AudioSegment.silent(duration=15000, frame_rate=16000)
+        combined_sound_with_silence = combined_sound + trailing_silence
+        mixer.save_audio(combined_sound_with_silence, input_wav_path)
         
         # 4. Đo thời lượng file interrupt thực tế
         interrupt_sound = mixer.load_audio(interrupt_wav_path)
