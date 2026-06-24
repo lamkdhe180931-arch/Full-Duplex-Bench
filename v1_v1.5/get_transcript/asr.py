@@ -20,7 +20,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
     # Load the pretrained PhoWhisper model and move to GPU
     pipe = pipeline(
         "automatic-speech-recognition",
-        model="vinai/pho-whisper-medium",
+        model="vinai/PhoWhisper-medium",
         chunk_length_s=30,
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
