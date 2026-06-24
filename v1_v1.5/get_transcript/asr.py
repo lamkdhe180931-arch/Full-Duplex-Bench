@@ -73,7 +73,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
             prediction = pipe(
                 tmp.name,
                 return_timestamps="word",
-                generate_kwargs={"language": "vietnamese", "condition_on_previous_text": False}
+                generate_kwargs={"language": "vietnamese"}
             )
         # remove the temp file so you don't leak disk
         os.unlink(tmp.name)
