@@ -88,8 +88,8 @@ def eval_smooth_turn_taking(data_dir):
         if i < 0:
             print(i)
 
-    average_take_turn = sum(take_turn_list) / len(take_turn_list)
-    average_latency = sum(latency_list) / len(latency_list)
+    average_take_turn = sum(take_turn_list) / len(take_turn_list) if len(take_turn_list) > 0 else 0.0
+    average_latency = sum(latency_list) / len(latency_list) if len(latency_list) > 0 else 0.0
 
     print("---------------------------------------------------")
     print("[Result]")

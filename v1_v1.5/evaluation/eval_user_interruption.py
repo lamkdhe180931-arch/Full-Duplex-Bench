@@ -156,9 +156,9 @@ def eval_user_interruption(root_dir, client):
 
     print("---------------------------------------------------")
     print("[Result]")
-    print("Average rating: ", sum(score_list) / len(score_list))
-    print("Average take turn: ", sum(take_turn_list) / len(take_turn_list))
-    print("Average latency: ", sum(latency_list) / len(latency_list))
+    print("Average rating: ", sum(score_list) / len(score_list) if len(score_list) > 0 else 0.0)
+    print("Average take turn: ", sum(take_turn_list) / len(take_turn_list) if len(take_turn_list) > 0 else 0.0)
+    print("Average latency: ", sum(latency_list) / len(latency_list) if len(latency_list) > 0 else 0.0)
     print("---------------------------------------------------")
 
 
