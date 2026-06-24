@@ -118,14 +118,17 @@ def generate_user_interruption(generator, mixer, templates, output_base):
         len_context_sec = len(context_sound) / 1000.0
         
         interrupt_delay = item["interrupt_delay_sec"]
-        
-        # input.wav = context + khoảng lặng (mô phỏng lúc agent trả lời và bị ngắt) + interrupt
-        input_wav_path = os.path.join(sample_dir, "input.wav")
-        mixer.concat_with_silence([context_wav_path, interrupt_wav_path], interrupt_delay, input_wav_path)
-        
-        # 4. Đo thời lượng file interrupt thực tế
         interrupt_sound = mixer.load_audio(interrupt_wav_path)
         len_interrupt_sec = len(interrupt_sound) / 1000.0
+        
+        # Thêm 15 giây im lặng đằng sau context. Câu thoại ngắt lời sẽ nằm trong khoảng 15s này
+        silence_window = AudioSegment.silent(duration=15000, frame_rate=16000)
+        interrupt_pos_ms = int(interrupt_delay * 1000)
+        silence_with_interrupt = silence_window.overlay(interrupt_sound, position=interrupt_pos_ms)
+        
+        # input.wav = context_sound + silence_with_interrupt
+        input_wav_path = os.path.join(sample_dir, "input.wav")
+        mixer.save_audio(context_sound + silence_with_interrupt, input_wav_path)
         
         # 5. Ghi file chú thích interrupt.json
         interrupt_info = [

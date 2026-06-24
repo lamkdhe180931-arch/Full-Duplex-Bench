@@ -36,18 +36,17 @@ def generate_interruption_and_backchannel(generator, mixer, templates, category,
         delay_sec = item["delay_sec"]
         delay_ms = int(delay_sec * 1000)
         
-        # 3. Tạo input.wav (chứa cả câu trước + khoảng lặng + câu chen)
-        # Nối: context + khoảng lặng (delay) + câu chen
-        silence_delay = AudioSegment.silent(duration=delay_ms, frame_rate=16000)
-        input_sound = context_sound + silence_delay + current_sound
+        # 3. Tạo input.wav (chứa cả câu trước + 15 giây lặng, trong đó câu chen được trộn đè vào)
+        silence_window = AudioSegment.silent(duration=15000, frame_rate=16000)
+        silence_with_current = silence_window.overlay(current_sound, position=delay_ms)
+        input_sound = context_sound + silence_with_current
         
         input_wav_path = os.path.join(sample_dir, "input.wav")
         mixer.save_audio(input_sound, input_wav_path)
         
         # 4. Tạo clean_input.wav (file sạch đối chứng - không có câu chen)
-        # Để đảm bảo bằng độ dài với input.wav, clean_input.wav sẽ gồm context + khoảng lặng kéo dài hết câu chen
-        silence_extended = AudioSegment.silent(duration=delay_ms + len_current_ms, frame_rate=16000)
-        clean_input_sound = context_sound + silence_extended
+        # clean_input.wav sẽ gồm context + 15 giây lặng
+        clean_input_sound = context_sound + silence_window
         
         clean_input_wav_path = os.path.join(sample_dir, "clean_input.wav")
         mixer.save_audio(clean_input_sound, clean_input_wav_path)
@@ -104,6 +103,10 @@ def generate_other_and_background(generator, mixer, templates, category, output_
         delay_ms = int(delay_sec * 1000)
         
         # 3. Tính toán phần thừa để tránh bị cắt cụt file và giữ cho clean_input / input bằng độ dài nhau
+        # Thêm 15 giây khoảng lặng đệm vào cuối clean_sound cho phản hồi của Agent
+        silence_trailing = AudioSegment.silent(duration=15000, frame_rate=16000)
+        clean_sound = clean_sound + silence_trailing
+        
         overlap_end_ms = delay_ms + len(overlap_sound)
         if overlap_end_ms > len(clean_sound):
             silence_needed_ms = overlap_end_ms - len(clean_sound)
@@ -111,9 +114,10 @@ def generate_other_and_background(generator, mixer, templates, category, output_
             
             # Cả hai file clean_input và input đều được kéo dài bằng khoảng lặng ở cuối
             clean_sound = clean_sound + silence
-            # Ghi đè lại clean_input.wav đã được đồng bộ độ dài
-            mixer.save_audio(clean_sound, clean_input_wav_path)
             
+        # Ghi đè lại clean_input.wav đã được đồng bộ độ dài
+        mixer.save_audio(clean_sound, clean_input_wav_path)
+        
         # 4. Tạo input.wav bằng cách trộn đè (overlay)
         input_sound = clean_sound.overlay(overlap_sound, position=delay_ms)
         input_wav_path = os.path.join(sample_dir, "input.wav")
