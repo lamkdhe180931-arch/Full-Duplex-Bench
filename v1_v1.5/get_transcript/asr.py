@@ -2,9 +2,9 @@ import os
 import json
 import argparse
 from glob import glob
-
+import torch
 import soundfile as sf
-import nemo.collections.asr as nemo_asr
+from transformers import pipeline
 from tqdm import tqdm
 
 MODEL_NAME = ""
@@ -17,10 +17,13 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
     # JSON output filename mirrors the audio filename (e.g. clean_input.wav -> clean_input.json)
     json_name = audio_name.rsplit(".", 1)[0] + ".json"
 
-    # Load the pretrained NeMo ASR model and move to GPU
-    asr_model = nemo_asr.models.ASRModel.from_pretrained(
-        model_name="nvidia/parakeet-tdt-0.6b-v2"
-    ).cuda()
+    # Load the pretrained PhoWhisper model and move to GPU
+    pipe = pipeline(
+        "automatic-speech-recognition",
+        model="vinai/pho-whisper-medium",
+        chunk_length_s=30,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+    )
 
     for audio_path in tqdm(audio_paths):
         print(audio_path)
@@ -51,27 +54,28 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             sf.write(tmp.name, waveform, sr)
-            # original file‐based API (this accepts timestamps=True)
-            asr_outputs = asr_model.transcribe([tmp.name], timestamps=True)
+            prediction = pipe(tmp.name, return_timestamps="word", generate_kwargs={"language": "vietnamese"})
         # remove the temp file so you don't leak disk
         os.unlink(tmp.name)
-
-        # Take the first (and only) result
-        result = asr_outputs[0]
-        word_timestamps = result.timestamp["word"]
 
         # Build the output dict, adjusting each timestamp by the offset
         chunks = []
         text = ""
-        for w in word_timestamps:
-            start_time = w["start"] + offset
-            end_time = w["end"] + offset
-            word = w["word"]
+        for chunk in prediction.get("chunks", []):
+            word = chunk["text"]
+            word_clean = word.strip()
+            if not word_clean:
+                continue
+            if chunk["timestamp"] is None:
+                continue
+            
+            start_time = chunk["timestamp"][0] + offset
+            end_time = chunk["timestamp"][1] + offset
 
-            text += word + " "
+            text += word_clean + " "
             chunks.append(
                 {
-                    "text": word,
+                    "text": word_clean,
                     "timestamp": [start_time, end_time],
                 }
             )
