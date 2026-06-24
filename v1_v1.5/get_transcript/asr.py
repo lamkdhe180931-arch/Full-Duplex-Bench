@@ -4,6 +4,7 @@ import argparse
 from glob import glob
 import torch
 import soundfile as sf
+import numpy as np
 from transformers import pipeline
 from tqdm import tqdm
 
@@ -56,11 +57,24 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
             start_idx = int(end_interrupt * sr)
             waveform = waveform[start_idx:]
 
+        # Crop trailing silence (padded as absolute zeros) to prevent Whisper hallucinating loops/unk/a.
+        non_zero_indices = np.where(np.abs(waveform) > 1e-4)[0]
+        if len(non_zero_indices) > 0:
+            last_active_idx = non_zero_indices[-1]
+            # Add 0.5 seconds of safety padding to ensure the final word is fully captured
+            padding_samples = int(0.5 * sr)
+            end_idx = min(len(waveform), last_active_idx + padding_samples)
+            waveform = waveform[:end_idx]
+
         import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             sf.write(tmp.name, waveform, sr)
-            prediction = pipe(tmp.name, return_timestamps="word", generate_kwargs={"language": "vietnamese"})
+            prediction = pipe(
+                tmp.name,
+                return_timestamps="word",
+                generate_kwargs={"language": "vietnamese", "condition_on_previous_text": False}
+            )
         # remove the temp file so you don't leak disk
         os.unlink(tmp.name)
 
