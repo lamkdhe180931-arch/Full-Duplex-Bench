@@ -388,7 +388,7 @@ async def batch_process(args):
         print(f"\n[{i+1}/{len(files)}] {f}")
         # out_dir = os.path.join(os.path.dirname(f), "gemini25_native")
         # os.makedirs(out_dir, exist_ok=True)
-        out_wav = os.path.join(os.path.dirname(f), "output.wav")
+        out_wav = os.path.join(os.path.dirname(f), f"{args.prefix}output.wav")
 
         if os.path.exists(out_wav) and not args.overwrite:
             print("Skip")
