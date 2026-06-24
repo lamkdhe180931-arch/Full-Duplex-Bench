@@ -137,10 +137,9 @@ def main():
     generator = VietnameseTTSGenerator(provider="edge-tts")
     mixer = AudioMixer()
     
-    # Định nghĩa thư mục kịch bản và thư mục đầu ra
     current_dir = os.path.dirname(os.path.abspath(__file__))
     templates_dir = os.path.join(current_dir, "templates")
-    output_base = os.path.abspath(os.path.join(current_dir, "..", "dataset", "v1_0"))
+    output_base = os.path.abspath(os.path.join(current_dir, "..", "..", "dataset", "v1_0"))
     
     # 1. Sinh dữ liệu Pause Handling
     pause_template_path = os.path.join(templates_dir, "synthetic_pause_handling.json")

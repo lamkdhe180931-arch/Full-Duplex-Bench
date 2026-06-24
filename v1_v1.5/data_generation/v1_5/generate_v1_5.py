@@ -142,10 +142,9 @@ def main():
     generator = VietnameseTTSGenerator(provider="edge-tts")
     mixer = AudioMixer()
     
-    # Định nghĩa thư mục kịch bản và thư mục đầu ra
     current_dir = os.path.dirname(os.path.abspath(__file__))
     templates_dir = os.path.join(current_dir, "templates")
-    output_base = os.path.abspath(os.path.join(current_dir, "..", "dataset", "v1_5"))
+    output_base = os.path.abspath(os.path.join(current_dir, "..", "..", "dataset", "v1_5"))
     
     # 1. Sinh dữ liệu User Interruption
     interrupt_path = os.path.join(templates_dir, "user_interruption.json")
