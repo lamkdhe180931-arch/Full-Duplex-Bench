@@ -18,11 +18,13 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
     json_name = audio_name.rsplit(".", 1)[0] + ".json"
 
     # Load the pretrained PhoWhisper model and move to GPU
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     pipe = pipeline(
         "automatic-speech-recognition",
         model="vinai/PhoWhisper-medium",
         chunk_length_s=30,
-        device="cuda" if torch.cuda.is_available() else "cpu",
+        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        device=device,
     )
 
     for audio_path in tqdm(audio_paths):
@@ -90,6 +92,13 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
         with open(result_path, "w") as f:
             json.dump(output_dict, f, indent=4)
+
+        # Free GPU memory cache to prevent Out Of Memory
+        import gc
+        del prediction
+        gc.collect()
+        if device == "cuda":
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
