@@ -5,7 +5,10 @@
     "current_turn_text": "Hôm nay giá vàng trong nước có biến động gì nhiều không bạn?",
     "overlap_text": "Bóng đá Việt Nam hôm nay thắng đậm ba không.",
     "delay_sec": 1.5,
-    "bg_gain": -12,
+    "background_provider": "elevenlabs_sfx",
+    "background_prompt": "muffled Vietnamese TV news broadcast from another room, indistinct speech, realistic home ambience, not directed at the microphone",
+    "background_duration_sec": 5.0,
+    "target_snr_db": 8,
     "description": "Nhiễu giọng nói của người khác trên tivi ở nền (nhiễu âm lượng nhỏ)."
   },
   {
@@ -14,7 +17,10 @@
     "current_turn_text": "Đặt cho tôi một lịch nhắc họp lúc chín giờ sáng mai nhé.",
     "overlap_text": "Mẹ ơi hôm nay nhà mình ăn món gì thế ạ?",
     "delay_sec": 2.0,
-    "bg_gain": -10,
+    "background_provider": "elevenlabs_sfx",
+    "background_prompt": "Vietnamese child speaking softly in a nearby room with household ambience, indistinct background speech, natural distance from microphone",
+    "background_duration_sec": 4.5,
+    "target_snr_db": 10,
     "description": "Tiếng trẻ con nói chuyện ở nền xung quanh khi người dùng đang ra lệnh."
   }
 ]

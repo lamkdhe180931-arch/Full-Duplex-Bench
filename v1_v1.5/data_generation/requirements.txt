@@ -1,4 +1,5 @@
 pydub
+numpy
 edge-tts
 gTTS
 openai
