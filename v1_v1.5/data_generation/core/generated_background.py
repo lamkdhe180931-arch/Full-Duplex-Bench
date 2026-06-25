@@ -11,8 +11,41 @@ from pydub import AudioSegment
 BACKGROUND_AUDIO_PROVIDERS = {
     "elevenlabs_sfx",
     "audiogen_cli",
+    "audiogen_inline",
     "audioldm2_cli",
 }
+
+
+# Lazy-loaded AudioGen model singleton to avoid reloading on every sample.
+_AUDIOGEN_MODEL = None
+_AUDIOGEN_DEVICE = None
+
+
+def _get_audiogen_model(device=None):
+    """Load AudioGen model once and cache it for reuse."""
+    global _AUDIOGEN_MODEL, _AUDIOGEN_DEVICE
+
+    if device is None:
+        import torch
+        device = "cuda:1" if torch.cuda.is_available() else "cpu"
+
+    if _AUDIOGEN_MODEL is not None and _AUDIOGEN_DEVICE == device:
+        return _AUDIOGEN_MODEL
+
+    try:
+        from audiocraft.models import AudioGen
+    except ImportError:
+        raise ImportError(
+            "audiocraft is required for audiogen_inline provider. Install with:\n"
+            "  pip install -U git+https://github.com/facebookresearch/audiocraft\n"
+            "Requires Python 3.9+ and PyTorch 2.1.0+"
+        )
+
+    print(f"[AudioGen] Loading facebook/audiogen-medium onto {device}...")
+    _AUDIOGEN_MODEL = AudioGen.get_pretrained("facebook/audiogen-medium", device=device)
+    _AUDIOGEN_DEVICE = device
+    print("[AudioGen] Model loaded.")
+    return _AUDIOGEN_MODEL
 
 
 class GeneratedBackgroundGenerator:
@@ -21,11 +54,12 @@ class GeneratedBackgroundGenerator:
 
     Providers:
     - elevenlabs_sfx: calls ElevenLabs Sound Effects API.
-    - audiogen_cli: runs a configured local AudioGen command.
-    - audioldm2_cli: runs a configured local AudioLDM 2 command.
+    - audiogen_inline: uses audiocraft's AudioGen directly in-process (recommended for Kaggle).
+    - audiogen_cli: runs a configured local AudioGen command via subprocess.
+    - audioldm2_cli: runs a configured local AudioLDM 2 command via subprocess.
     """
 
-    def __init__(self, provider=None, prompt_influence=None, timeout_sec=180):
+    def __init__(self, provider=None, prompt_influence=None, timeout_sec=180, device=None):
         self.provider = (provider or os.getenv("FDB_BACKGROUND_PROVIDER") or "elevenlabs_sfx").lower()
         self.prompt_influence = float(
             prompt_influence
@@ -33,6 +67,7 @@ class GeneratedBackgroundGenerator:
             else os.getenv("ELEVENLABS_SFX_PROMPT_INFLUENCE", "0.35")
         )
         self.timeout_sec = timeout_sec
+        self.device = device or os.getenv("FDB_AUDIOGEN_DEVICE")
 
     def generate(self, prompt, output_path, duration_sec, seed=None, provider=None):
         provider = (provider or self.provider).lower()
@@ -43,6 +78,22 @@ class GeneratedBackgroundGenerator:
             )
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+
+        if provider == "audiogen_inline":
+            provider_metadata = self._generate_audiogen_inline(
+                prompt, output_path, duration_sec, seed
+            )
+            provider_metadata.update(
+                {
+                    "provider": provider,
+                    "prompt": prompt,
+                    "duration_sec": duration_sec,
+                    "seed": seed,
+                    "output_path": os.path.abspath(output_path),
+                }
+            )
+            return provider_metadata
+
         suffix = ".mp3" if provider == "elevenlabs_sfx" else ".wav"
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_file:
             raw_path = tmp_file.name
@@ -82,6 +133,44 @@ class GeneratedBackgroundGenerator:
             }
         )
         return provider_metadata
+
+    def _generate_audiogen_inline(self, prompt, output_path, duration_sec, seed):
+        """Generate background audio using AudioGen directly in-process (no subprocess)."""
+        import torch
+        import numpy as np
+
+        if seed is not None:
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+
+        model = _get_audiogen_model(device=self.device)
+        model.set_generation_params(duration=duration_sec)
+
+        print(f"[AudioGen] Generating: '{prompt[:80]}...' ({duration_sec}s)")
+        with torch.no_grad():
+            wav = model.generate([prompt])  # (1, 1, num_samples)
+
+        sampling_rate = model.sample_rate  # 16000
+        audio_data = wav[0].cpu().numpy()  # (1, num_samples)
+        if audio_data.ndim > 1:
+            audio_data = audio_data[0]
+
+        # Normalize to int16 for WAV
+        peak = float(np.max(np.abs(audio_data)))
+        if peak > 0:
+            audio_data = audio_data / peak * 0.95
+        audio_int16 = (audio_data * 32767).astype(np.int16)
+
+        import scipy.io.wavfile
+        scipy.io.wavfile.write(output_path, rate=sampling_rate, data=audio_int16)
+        print(f"[AudioGen] Saved: {output_path}")
+
+        return {
+            "model_id": "facebook/audiogen-medium",
+            "device": str(self.device),
+            "sample_rate": sampling_rate,
+        }
 
     def _generate_elevenlabs_sfx(self, prompt, output_path, duration_sec):
         api_key = os.getenv("ELEVENLABS_API_KEY") or os.getenv("XI_API_KEY")
