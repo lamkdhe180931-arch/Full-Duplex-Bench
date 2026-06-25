@@ -42,18 +42,22 @@ def generate_pause_handling(generator, mixer, templates, output_base):
         combined_sound_with_silence = combined_sound + trailing_silence
         mixer.save_audio(combined_sound_with_silence, input_wav_path)
         
-        # 4. Ghi file chú thích pause.json
-        pause_info = [
-            {
-                "text": "[PAUSE]",
-                "timestamp": [
-                    len_p1_sec,
-                    len_p1_sec + pause_duration
-                ]
-            }
-        ]
-        with open(os.path.join(sample_dir, "pause.json"), "w", encoding="utf-8") as f:
-            json.dump(pause_info, f, indent=4, ensure_ascii=False)
+        # 4. Ghi file chú thích metadata.json
+        metadata = {
+            "context_text": item["part_1"],
+            "current_turn_text": item["part_2"],
+            "timestamps": [
+                len_p1_sec,
+                len_p1_sec + pause_duration
+            ],
+            "type": "synthetic_pause_handling"
+        }
+        with open(os.path.join(sample_dir, "metadata.json"), "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=4, ensure_ascii=False)
+            
+        # Thêm file clean_input.wav cho đồng nhất với v1.5
+        clean_input_wav_path = os.path.join(sample_dir, "clean_input.wav")
+        mixer.save_audio(combined_sound_with_silence, clean_input_wav_path)
             
         # 5. Dọn dẹp file tạm
         if os.path.exists(p1_path):
@@ -83,18 +87,21 @@ def generate_turn_taking(generator, mixer, templates, output_base):
         sound_with_silence = sound + trailing_silence
         mixer.save_audio(sound_with_silence, input_wav_path)
         
-        # 3. Ghi file chú thích turn_taking.json (mốc kết thúc tại timestamp[0])
-        turn_info = [
-            {
-                "text": "[TURN-TAKING]",
-                "timestamp": [
-                    len_sound_sec,
-                    0.0
-                ]
-            }
-        ]
-        with open(os.path.join(sample_dir, "turn_taking.json"), "w", encoding="utf-8") as f:
-            json.dump(turn_info, f, indent=4, ensure_ascii=False)
+        # 3. Ghi file chú thích metadata.json
+        metadata = {
+            "current_turn_text": item["text"],
+            "timestamps": [
+                len_sound_sec,
+                0.0
+            ],
+            "type": "candor_turn_taking"
+        }
+        with open(os.path.join(sample_dir, "metadata.json"), "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=4, ensure_ascii=False)
+            
+        # Thêm file clean_input.wav cho đồng nhất với v1.5
+        clean_input_wav_path = os.path.join(sample_dir, "clean_input.wav")
+        mixer.save_audio(sound_with_silence, clean_input_wav_path)
 
 def generate_user_interruption(generator, mixer, templates, output_base):
     print("-> Đang sinh dữ liệu cho: synthetic_user_interruption")
@@ -130,19 +137,22 @@ def generate_user_interruption(generator, mixer, templates, output_base):
         input_wav_path = os.path.join(sample_dir, "input.wav")
         mixer.save_audio(context_sound + silence_with_interrupt, input_wav_path)
         
-        # 5. Ghi file chú thích interrupt.json
-        interrupt_info = [
-            {
-                "context": item["context"],
-                "interrupt": item["interrupt"],
-                "timestamp": [
-                    len_context_sec + interrupt_delay,
-                    len_context_sec + interrupt_delay + len_interrupt_sec
-                ]
-            }
-        ]
-        with open(os.path.join(sample_dir, "interrupt.json"), "w", encoding="utf-8") as f:
-            json.dump(interrupt_info, f, indent=4, ensure_ascii=False)
+        # 5. Ghi file chú thích metadata.json
+        metadata = {
+            "context_text": item["context"],
+            "current_turn_text": item["interrupt"],
+            "timestamps": [
+                len_context_sec + interrupt_delay,
+                len_context_sec + interrupt_delay + len_interrupt_sec
+            ],
+            "type": "synthetic_user_interruption"
+        }
+        with open(os.path.join(sample_dir, "metadata.json"), "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=4, ensure_ascii=False)
+            
+        # Thêm file clean_input.wav cho đồng nhất với v1.5 (ngữ cảnh gốc + im lặng)
+        clean_input_wav_path = os.path.join(sample_dir, "clean_input.wav")
+        mixer.save_audio(context_sound + silence_window, clean_input_wav_path)
 
 def main():
     print("=== Khởi chạy sinh dữ liệu Full-Duplex-Bench v1.0 (Tiếng Việt) ===")
