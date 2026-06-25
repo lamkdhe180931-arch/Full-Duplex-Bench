@@ -94,13 +94,17 @@ def generate_other_and_background(generator, mixer, templates, category, output_
         clean_sound = mixer.load_audio(clean_input_wav_path)
         overlap_sound = mixer.load_audio(overlap_path)
         
+        # Đo độ dài câu thoại sạch gốc trước khi thêm khoảng lặng
+        len_clean_speech_ms = len(clean_sound)
+        
         # Lấy gain nếu có thiết lập cấu hình trong kịch bản (ví dụ -12dB cho background noise)
         gain = item.get("bg_gain", 0)
         if gain != 0:
             overlap_sound = overlap_sound.apply_gain(gain)
             
         delay_sec = item["delay_sec"]
-        delay_ms = int(delay_sec * 1000)
+        # Điểm chèn âm thanh bắt đầu từ lúc nói xong câu hỏi chính + khoảng trễ
+        delay_ms = len_clean_speech_ms + int(delay_sec * 1000)
         
         # 3. Tính toán phần thừa để tránh bị cắt cụt file và giữ cho clean_input / input bằng độ dài nhau
         # Thêm 15 giây khoảng lặng đệm vào cuối clean_sound cho phản hồi của Agent
@@ -124,12 +128,13 @@ def generate_other_and_background(generator, mixer, templates, category, output_
         mixer.save_audio(input_sound, input_wav_path)
         
         # 5. Ghi file metadata.json
+        start_overlap_sec = (len_clean_speech_ms / 1000.0) + delay_sec
         metadata = {
             "context_text": item["context_text"],
             "current_turn_text": item["current_turn_text"],
             "timestamps": [
-                delay_sec,
-                delay_sec + (len(overlap_sound) / 1000.0)
+                start_overlap_sec,
+                start_overlap_sec + (len(overlap_sound) / 1000.0)
             ]
         }
         with open(os.path.join(sample_dir, "metadata.json"), "w", encoding="utf-8") as f:
