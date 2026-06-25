@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Generate background audio using Meta's AudioGen model via the audiocraft library.
 
+Official API reference: https://github.com/facebookresearch/audiocraft/blob/main/docs/AUDIOGEN.md
+
+Requirements:
+    pip install -U audiocraft
+    (audiocraft requires Python 3.9+ and PyTorch 2.1.0+)
+
 Usage (called as subprocess by GeneratedBackgroundGenerator):
     python generate_audiogen.py \
         --prompt "muffled speech in a cafe" \
@@ -12,8 +18,6 @@ Usage (called as subprocess by GeneratedBackgroundGenerator):
 import argparse
 import os
 import torch
-import scipy.io.wavfile
-import numpy as np
 
 
 def main():
@@ -38,14 +42,17 @@ def main():
             torch.cuda.manual_seed_all(args.seed)
 
     # ── Load AudioGen via audiocraft (Meta's official library) ──
+    # Ref: https://github.com/facebookresearch/audiocraft/blob/main/docs/AUDIOGEN.md
     try:
         from audiocraft.models import AudioGen
+        from audiocraft.data.audio import audio_write
     except ImportError:
         raise ImportError(
             "audiocraft is required for AudioGen. Install it with:\n"
-            "  pip install audiocraft\n"
-            "Or on Kaggle/Colab:\n"
-            "  !pip install audiocraft"
+            "  pip install -U audiocraft\n"
+            "Note: audiocraft requires Python 3.9+ and PyTorch 2.1.0+\n"
+            "On Kaggle/Colab:\n"
+            "  !pip install -U audiocraft"
         )
 
     print(f"Loading facebook/audiogen-medium model onto {args.device}...")
@@ -56,25 +63,22 @@ def main():
     with torch.no_grad():
         wav = model.generate([args.prompt])  # shape: (1, 1, num_samples)
 
-    # AudioGen outputs at 16000 Hz
-    sampling_rate = model.sample_rate  # 16000
-    audio_data = wav[0].cpu().numpy()  # shape: (1, num_samples)
-
-    # Flatten to 1D if needed
-    if audio_data.ndim > 1:
-        audio_data = audio_data[0]
-
-    # Normalize to int16 range for scipy wav write
-    peak = np.max(np.abs(audio_data))
-    if peak > 0:
-        audio_data = audio_data / peak * 0.95
-    audio_int16 = (audio_data * 32767).astype(np.int16)
-
     # Ensure directory exists
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
 
-    # Write to WAV
-    scipy.io.wavfile.write(args.output, rate=sampling_rate, data=audio_int16)
+    # Use audiocraft's official audio_write with loudness normalization
+    # audio_write expects path without extension, adds .wav automatically
+    output_stem = args.output
+    if output_stem.endswith(".wav"):
+        output_stem = output_stem[:-4]
+
+    audio_write(
+        output_stem,
+        wav[0].cpu(),
+        model.sample_rate,
+        strategy="loudness",
+        loudness_compressor=True,
+    )
     print(f"Audio generated successfully and saved to: {args.output}")
 
 
