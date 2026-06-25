@@ -158,7 +158,7 @@ class SynchronizedRecorder:
                         continue
                     
                     # Pacify silence writing based on sender's progress to ensure alignment during cooldowns
-                    if self.count / self.out_sr >= self.current_sender_time:
+                    if self.running and self.count / self.out_sr >= self.current_sender_time:
                         await asyncio.sleep(0.01)
                         continue
                     
