@@ -76,16 +76,26 @@ def eval_user_interruption(root_dir, client):
                 out_after_interrupt = json.load(f)
 
             metadata_path = os.path.join(file_dir, "interrupt.json")
+            is_v15 = False
             if not os.path.exists(metadata_path):
-                raise FileNotFoundError("Required file 'interrupt.json' not found.")
+                metadata_path = os.path.join(file_dir, "metadata.json")
+                if not os.path.exists(metadata_path):
+                    raise FileNotFoundError("Required file 'interrupt.json' or 'metadata.json' not found.")
+                is_v15 = True
 
             # read the json file
-            with open(metadata_path, "r") as f:
+            with open(metadata_path, "r", encoding="utf-8") as f:
                 metadata = json.load(f)
 
-            in_interrupt_text = metadata[0]["interrupt"]
-            in_before_interrupt_text = metadata[0]["context"]
-            input_end_time = metadata[0]["timestamp"][1]
+            if is_v15:
+                in_interrupt_text = metadata["current_turn_text"]
+                in_before_interrupt_text = metadata["context_text"]
+                input_end_time = metadata["timestamps"][1]
+            else:
+                in_interrupt_text = metadata[0]["interrupt"]
+                in_before_interrupt_text = metadata[0]["context"]
+                input_end_time = metadata[0]["timestamp"][1]
+                
             out_after_interrupt_text = out_after_interrupt["text"]
 
             # TOR and latency

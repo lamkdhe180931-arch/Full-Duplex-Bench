@@ -25,12 +25,12 @@ def eval_backchannel(data_dir):
     TOR_list = []
     freq_list = []
     for spk in os.listdir(data_dir):
-        if not spk.isdigit():
+        if spk.startswith(".") or not os.path.isdir(os.path.join(data_dir, spk)):
             continue
 
         out_wav_path = f"{data_dir}/{spk}/output.wav"
         if not os.path.exists(out_wav_path):
-            raise FileNotFoundError("Required file 'output.wav' not found.")
+            raise FileNotFoundError(f"Required file '{out_wav_path}' not found.")
 
         wav, sr = torchaudio.load(out_wav_path)
         if sr != 16000:

@@ -46,11 +46,21 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         if task == "user_interruption":
             # Load the interrupt metadata to get [start, end] timestamps
             meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "interrupt.json")
-            with open(meta_path, "r") as f:
-                interrupt_meta = json.load(f)
+            if not os.path.exists(meta_path):
+                meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "metadata.json")
+            
+            if not os.path.exists(meta_path):
+                raise FileNotFoundError(f"Neither interrupt.json nor metadata.json found in {os.path.dirname(audio_path)}")
+                
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta_data = json.load(f)
 
-            # We only care about the end of the interruption
-            _, end_interrupt = interrupt_meta[0]["timestamp"]
+            # Extract end_interrupt depending on schema (v1.0 list vs v1.5 dict)
+            if isinstance(meta_data, list):
+                _, end_interrupt = meta_data[0]["timestamp"]
+            else:
+                _, end_interrupt = meta_data["timestamps"]
+                
             offset = end_interrupt
 
             # Compute the sample index to start from, and crop the waveform
