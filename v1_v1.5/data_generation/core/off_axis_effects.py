@@ -78,13 +78,93 @@ def _apply_dsp_off_axis(sound, angle_deg, distance_m):
     return processed[: len(sound)]
 
 
-def apply_off_axis_effect(sound, rir_path=None, angle_deg=90, distance_m=1.5):
+def _apply_pyroomacoustics_off_axis(sound, angle_deg, distance_m, rt60, room_dim):
+    import numpy as np
+    import pyroomacoustics as pra
+    from pyroomacoustics.directivities import CardioidFamily, DirectionVector
+
+    clean = _ensure_benchmark_format(sound)
+    samples = np.array(clean.get_array_of_samples()).astype(np.float32)
+    scale = float(2 ** (8 * clean.sample_width - 1))
+    clean_float = samples / scale
+
+    if room_dim is None:
+        room_dim = [5.0, 4.0, 3.0]
+    room_dim = [float(x) for x in room_dim]
+
+    # Sabine's formula: RT60 = 0.161 * V / A
+    V = room_dim[0] * room_dim[1] * room_dim[2]
+    S = 2 * (room_dim[0] * room_dim[1] + room_dim[1] * room_dim[2] + room_dim[2] * room_dim[0])
+    
+    if rt60 > 0:
+        alpha = 0.161 * V / (S * rt60)
+        alpha = min(max(alpha, 0.01), 0.99)
+    else:
+        alpha = 0.15
+
+    materials = pra.make_materials(
+        ceiling=(alpha, 0.15),
+        floor=(alpha, 0.15),
+        east=(alpha, 0.15),
+        west=(alpha, 0.15),
+        north=(alpha, 0.15),
+        south=(alpha, 0.15),
+    )
+    
+    room = pra.ShoeBox(
+        room_dim,
+        fs=clean.frame_rate,
+        materials=materials,
+        max_order=12,
+    )
+
+    mic_pos = np.array([room_dim[0] / 2.0, room_dim[1] / 2.0, room_dim[2] / 2.0])
+    room.add_microphone(mic_pos.reshape(3, 1))
+
+    source_pos = mic_pos + np.array([float(distance_m), 0.0, 0.0])
+    source_pos[0] = min(max(source_pos[0], 0.1), room_dim[0] - 0.1)
+    source_pos[1] = min(max(source_pos[1], 0.1), room_dim[1] - 0.1)
+    source_pos[2] = min(max(source_pos[2], 0.1), room_dim[2] - 0.1)
+
+    orientation = DirectionVector(azimuth=180.0 + float(angle_deg), colatitude=90.0, degrees=True)
+    directivity = CardioidFamily(orientation=orientation, p=0.5)
+
+    room.add_source(source_pos, signal=clean_float, directivity=directivity)
+    room.simulate()
+
+    simulated_signal = room.mic_array.signals[0]
+    
+    peak_in = np.max(np.abs(clean_float))
+    peak_out = np.max(np.abs(simulated_signal))
+    if peak_out > 0:
+        simulated_signal = simulated_signal * (peak_in / peak_out)
+        
+    simulated_signal = np.clip(simulated_signal, -0.99, 0.99)
+    output_samples = (simulated_signal * (scale - 1)).astype("<i2")
+
+    processed = AudioSegment(
+        output_samples.tobytes(),
+        frame_rate=clean.frame_rate,
+        sample_width=DEFAULT_SAMPLE_WIDTH,
+        channels=1,
+    )
+    return processed[: len(sound)]
+
+
+def apply_off_axis_effect(
+    sound,
+    rir_path=None,
+    angle_deg=90,
+    distance_m=1.5,
+    rt60=0.35,
+    room_dim=None,
+):
     """
     Simulate speech addressed away from the microphone.
 
-    If a real off-axis RIR is supplied, convolve speech with it. Otherwise, use a
-    deterministic DSP fallback that attenuates level/high frequencies and adds a
-    small room smear.
+    If a real off-axis RIR is supplied, convolve speech with it.
+    Otherwise, if PyRoomAcoustics is installed, run a high-fidelity 3D shoebox simulation.
+    Otherwise, fallback to a deterministic DSP approximation.
     """
     if rir_path:
         resolved_rir = Path(rir_path)
@@ -98,13 +178,31 @@ def apply_off_axis_effect(sound, rir_path=None, angle_deg=90, distance_m=1.5):
                 "distance_m": distance_m,
             }
 
-    processed = _apply_dsp_off_axis(sound, angle_deg=angle_deg, distance_m=distance_m)
-    return processed, {
-        "backend": "dsp_fallback",
-        "angle_deg": angle_deg,
-        "distance_m": distance_m,
-        "filters": {
-            "high_pass_hz": 120,
-            "low_pass_hz": 3600 if angle_deg >= 90 else 4800,
-        },
-    }
+    try:
+        processed = _apply_pyroomacoustics_off_axis(
+            sound,
+            angle_deg=angle_deg,
+            distance_m=distance_m,
+            rt60=rt60,
+            room_dim=room_dim,
+        )
+        return processed, {
+            "backend": "pyroomacoustics",
+            "angle_deg": angle_deg,
+            "distance_m": distance_m,
+            "rt60": rt60,
+            "room_dim": room_dim or [5.0, 4.0, 3.0],
+        }
+    except Exception as e:
+        processed = _apply_dsp_off_axis(sound, angle_deg=angle_deg, distance_m=distance_m)
+        return processed, {
+            "backend": "dsp_fallback",
+            "angle_deg": angle_deg,
+            "distance_m": distance_m,
+            "fallback_reason": str(e),
+            "filters": {
+                "high_pass_hz": 120,
+                "low_pass_hz": 3600 if angle_deg >= 90 else 4800,
+            },
+        }
+

@@ -333,7 +333,8 @@ def test_talking_to_other_generation_marks_off_axis_metadata(tmp_path):
     assert metadata["simulation"]["angle_deg"] == 90
     assert metadata["tts_profiles"]["clean_input"]["role"] == "primary"
     assert metadata["tts_profiles"]["overlap"]["role"] == "talking_to_other"
-    assert metadata["audio_effect"]["backend"] in {"rir_convolution", "dsp_fallback"}
+    assert metadata["audio_effect"]["backend"] in {"rir_convolution", "dsp_fallback", "pyroomacoustics"}
+
 
 
 def test_background_speech_uses_generated_noise_and_snr_metadata(tmp_path):

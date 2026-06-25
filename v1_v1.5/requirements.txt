@@ -19,3 +19,4 @@ statsmodels
 python-dotenv
 google-genai
 sphn==0.1.12
+pyroomacoustics

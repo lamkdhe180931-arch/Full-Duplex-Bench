@@ -245,12 +245,17 @@ def generate_talking_to_other(generator, mixer, templates, output_base):
         angle_deg = item.get("angle_deg", scenario["angle_deg"])
         distance_m = item.get("distance_m", scenario["distance_m"])
         rir_path = item.get("rir_path")
+        rt60 = item.get("rt60", 0.35)
+        room_dim = item.get("room_dim", None)
         overlap_sound, audio_effect = apply_off_axis_effect(
             overlap_sound,
             rir_path=rir_path,
             angle_deg=angle_deg,
             distance_m=distance_m,
+            rt60=rt60,
+            room_dim=room_dim,
         )
+
 
         overlap_gain_db = item.get("overlap_gain_db", scenario["overlap_gain_db"])
         if overlap_gain_db != 0:
