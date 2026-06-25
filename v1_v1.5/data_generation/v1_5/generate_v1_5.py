@@ -353,10 +353,8 @@ def generate_background_speech(
         duration_sec = float(item.get("background_duration_sec", scenario["background_duration_sec"]))
         duration_ms = int(duration_sec * 1000)
         target_snr_db = float(item.get("target_snr_db", scenario["target_snr_db"]))
-        provider = item.get("background_provider") or os.getenv(
-            "FDB_BACKGROUND_PROVIDER",
-            scenario["default_provider"],
-        )
+        provider = os.getenv("FDB_BACKGROUND_PROVIDER") or item.get("background_provider") or scenario["default_provider"]
+
         prompt = _background_prompt_from_item(item)
 
         background_path = os.path.join(sample_dir, "temp_generated_background.wav")
