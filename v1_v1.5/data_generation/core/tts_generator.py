@@ -2,6 +2,7 @@ import os
 import asyncio
 import random
 import tempfile
+import threading
 from pydub import AudioSegment
 
 
@@ -107,6 +108,29 @@ class VietnameseTTSGenerator:
             or "timed out" in message
         )
 
+    @staticmethod
+    def _run_async(coro):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+
+        result = {}
+
+        def runner():
+            try:
+                result["value"] = asyncio.run(coro)
+            except BaseException as exc:
+                result["error"] = exc
+
+        thread = threading.Thread(target=runner, daemon=True)
+        thread.start()
+        thread.join()
+
+        if "error" in result:
+            raise result["error"]
+        return result.get("value")
+
     def generate(self, text, output_path, voice=None, profile=None, role="primary"):
         """
         Hàm chính để sinh file audio .wav (16kHz, mono, 16-bit PCM)
@@ -131,7 +155,7 @@ class VietnameseTTSGenerator:
             while True:
                 try:
                     if self.provider == "edge-tts":
-                        asyncio.run(
+                        self._run_async(
                             self._generate_edge_tts(
                                 text,
                                 tmp_path,

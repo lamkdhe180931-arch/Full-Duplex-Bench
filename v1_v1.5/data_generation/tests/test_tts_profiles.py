@@ -1,4 +1,5 @@
 import json
+import asyncio
 import sys
 from pathlib import Path
 
@@ -85,6 +86,29 @@ def test_edge_tts_retries_transient_no_audio_response(monkeypatch, tmp_path):
     generator.generate("Xin chao", tmp_path / "out.wav")
 
     assert len(attempts) == 2
+
+
+def test_edge_tts_generate_works_inside_running_event_loop(monkeypatch, tmp_path):
+    generator = VietnameseTTSGenerator(provider="edge-tts", seed=7)
+    captured = {}
+
+    async def fake_edge_tts(text, output_path, voice, rate="+0%", volume="+0%", pitch="+0Hz"):
+        captured["text"] = text
+        Path(output_path).write_bytes(b"placeholder")
+
+    def fake_convert(input_path, output_path):
+        Path(output_path).write_bytes(b"wav")
+
+    monkeypatch.setattr(generator, "_generate_edge_tts", fake_edge_tts)
+    monkeypatch.setattr(generator, "_convert_to_benchmark_wav", fake_convert)
+
+    async def run_from_notebook_like_loop():
+        return generator.generate("Xin chao trong notebook", tmp_path / "out.wav")
+
+    asyncio.run(run_from_notebook_like_loop())
+
+    assert captured["text"] == "Xin chao trong notebook"
+    assert (tmp_path / "out.wav").exists()
 
 
 def test_tts_profile_selection_is_deterministic_by_seed():
