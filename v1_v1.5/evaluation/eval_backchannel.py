@@ -138,7 +138,19 @@ def eval_backchannel(data_dir):
             time_intervals = list(time_intervals)
 
             # Get ground truth distribution
-            gt_dist = gt_distribution[spk]
+            if spk in gt_distribution:
+                gt_dist = gt_distribution[spk]
+            else:
+                import re
+                match = re.search(r'\d+', spk)
+                if match:
+                    idx_str = str(int(match.group()) - 1)
+                    if idx_str in gt_distribution:
+                        gt_dist = gt_distribution[idx_str]
+                    else:
+                        gt_dist = gt_distribution["0"]
+                else:
+                    gt_dist = gt_distribution["0"]
 
             # Ensure lengths match using interpolation
             x_gt = np.linspace(0, 1, len(gt_dist))
