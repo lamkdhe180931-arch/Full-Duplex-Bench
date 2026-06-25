@@ -1,0 +1,49 @@
+{
+    "context_text": "",
+    "current_turn_text": "Tìm cho tôi chuyến bay từ Hà Nội đi Đà Nẵng chiều nay.",
+    "timestamps": [
+        7.364,
+        10.1
+    ],
+    "tts_profiles": {
+        "clean_input": {
+            "provider": "edge-tts",
+            "role": "primary",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "+0%",
+                "volume": "+0%",
+                "pitch": "+0Hz"
+            }
+        },
+        "overlap": {
+            "provider": "edge-tts",
+            "role": "talking_to_other",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "+3%",
+                "volume": "-3%",
+                "pitch": "-2Hz"
+            }
+        }
+    },
+    "simulation": {
+        "strategy": "tts_off_axis_simulation",
+        "same_speaker": true,
+        "off_axis": true,
+        "addressed_to_agent": false,
+        "angle_deg": 90,
+        "distance_m": 1.5,
+        "overlap_gain_db": -3,
+        "agent_response_window_sec": 15
+    },
+    "audio_effect": {
+        "backend": "dsp_fallback",
+        "angle_deg": 90,
+        "distance_m": 1.5,
+        "filters": {
+            "high_pass_hz": 120,
+            "low_pass_hz": 3600
+        }
+    }
+}

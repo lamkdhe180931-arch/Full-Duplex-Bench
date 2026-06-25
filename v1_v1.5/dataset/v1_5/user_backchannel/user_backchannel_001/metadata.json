@@ -1,0 +1,36 @@
+{
+    "context_text": "Bạn có thể hướng dẫn tôi các bước đăng ký thẻ ngân hàng trực tuyến không?",
+    "current_turn_text": "Dạ, vâng",
+    "timestamps": [
+        7.916,
+        9.86
+    ],
+    "tts_profiles": {
+        "context": {
+            "provider": "edge-tts",
+            "role": "primary",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "+0%",
+                "volume": "+0%",
+                "pitch": "+0Hz"
+            }
+        },
+        "overlap": {
+            "provider": "edge-tts",
+            "role": "user_backchannel",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "-4%",
+                "volume": "-4%",
+                "pitch": "+2Hz"
+            }
+        }
+    },
+    "simulation": {
+        "strategy": "tts_quiet_same_speaker_backchannel",
+        "same_speaker": true,
+        "overlap_gain_db": -6,
+        "agent_response_window_sec": 15
+    }
+}

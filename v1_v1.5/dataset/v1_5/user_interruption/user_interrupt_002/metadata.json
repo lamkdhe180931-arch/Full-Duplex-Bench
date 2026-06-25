@@ -1,0 +1,36 @@
+{
+    "context_text": "Bật nhạc trẻ sôi động giúp tôi với.",
+    "current_turn_text": "Thôi thôi nhạc nhẹ thôi, tôi muốn tập trung làm việc.",
+    "timestamps": [
+        6.024,
+        9.408
+    ],
+    "tts_profiles": {
+        "context": {
+            "provider": "edge-tts",
+            "role": "primary",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "-4%",
+                "volume": "-1%",
+                "pitch": "-4Hz"
+            }
+        },
+        "overlap": {
+            "provider": "edge-tts",
+            "role": "user_interruption",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "+8%",
+                "volume": "+2%",
+                "pitch": "+8Hz"
+            }
+        }
+    },
+    "simulation": {
+        "strategy": "tts_delayed_same_speaker",
+        "same_speaker": true,
+        "overlap_gain_db": 0,
+        "agent_response_window_sec": 15
+    }
+}

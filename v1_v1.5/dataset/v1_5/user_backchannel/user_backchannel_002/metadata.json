@@ -1,0 +1,36 @@
+{
+    "context_text": "Hãy giải thích cho tôi nguyên lý hoạt động của động cơ điện.",
+    "current_turn_text": "À, ra vậy",
+    "timestamps": [
+        7.864,
+        10.0
+    ],
+    "tts_profiles": {
+        "context": {
+            "provider": "edge-tts",
+            "role": "primary",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "-4%",
+                "volume": "-1%",
+                "pitch": "-4Hz"
+            }
+        },
+        "overlap": {
+            "provider": "edge-tts",
+            "role": "user_backchannel",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "-4%",
+                "volume": "-4%",
+                "pitch": "+2Hz"
+            }
+        }
+    },
+    "simulation": {
+        "strategy": "tts_quiet_same_speaker_backchannel",
+        "same_speaker": true,
+        "overlap_gain_db": -6,
+        "agent_response_window_sec": 15
+    }
+}

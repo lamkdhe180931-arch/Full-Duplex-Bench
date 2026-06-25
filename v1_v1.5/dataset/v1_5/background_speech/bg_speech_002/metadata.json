@@ -1,0 +1,30 @@
+{
+    "context_text": "",
+    "current_turn_text": "Đặt cho tôi một lịch nhắc họp lúc chín giờ sáng mai nhé.",
+    "timestamps": [
+        5.816,
+        9.368
+    ],
+    "tts_profiles": {
+        "clean_input": {
+            "provider": "edge-tts",
+            "role": "primary",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "+0%",
+                "volume": "+0%",
+                "pitch": "+0Hz"
+            }
+        },
+        "overlap": {
+            "provider": "edge-tts",
+            "role": "background_speech",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "-2%",
+                "volume": "-7%",
+                "pitch": "+4Hz"
+            }
+        }
+    }
+}

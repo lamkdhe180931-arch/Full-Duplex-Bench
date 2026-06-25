@@ -1,0 +1,36 @@
+{
+    "context_text": "Giúp tôi tìm một khách sạn giá tốt tại trung tâm thành phố nhé.",
+    "current_turn_text": "À đợi chút, nhớ là phải có hồ bơi và ăn sáng miễn phí nha bạn.",
+    "timestamps": [
+        7.864,
+        12.16
+    ],
+    "tts_profiles": {
+        "context": {
+            "provider": "edge-tts",
+            "role": "primary",
+            "profile": {
+                "voice": "vi-VN-NamMinhNeural",
+                "rate": "+1%",
+                "volume": "-1%",
+                "pitch": "+0Hz"
+            }
+        },
+        "overlap": {
+            "provider": "edge-tts",
+            "role": "user_interruption",
+            "profile": {
+                "voice": "vi-VN-NamMinhNeural",
+                "rate": "+8%",
+                "volume": "+2%",
+                "pitch": "+8Hz"
+            }
+        }
+    },
+    "simulation": {
+        "strategy": "tts_delayed_same_speaker",
+        "same_speaker": true,
+        "overlap_gain_db": 0,
+        "agent_response_window_sec": 15
+    }
+}

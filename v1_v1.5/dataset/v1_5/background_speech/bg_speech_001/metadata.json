@@ -1,0 +1,30 @@
+{
+    "context_text": "",
+    "current_turn_text": "Hôm nay giá vàng trong nước có biến động gì nhiều không bạn?",
+    "timestamps": [
+        5.556,
+        8.868
+    ],
+    "tts_profiles": {
+        "clean_input": {
+            "provider": "edge-tts",
+            "role": "primary",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "-4%",
+                "volume": "-1%",
+                "pitch": "-4Hz"
+            }
+        },
+        "overlap": {
+            "provider": "edge-tts",
+            "role": "background_speech",
+            "profile": {
+                "voice": "vi-VN-HoaiMyNeural",
+                "rate": "-2%",
+                "volume": "-7%",
+                "pitch": "+4Hz"
+            }
+        }
+    }
+}
