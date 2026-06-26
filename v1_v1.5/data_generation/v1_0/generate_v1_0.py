@@ -26,7 +26,8 @@ def generate_pause_handling(generator, mixer, templates, output_base):
         p2_path = os.path.join(sample_dir, "temp_p2.wav")
         
         generator.generate(item["part_1"], p1_path)
-        generator.generate(item["part_2"], p2_path)
+        p1_profile = generator.last_synthesis.get("profile") if generator.last_synthesis else None
+        generator.generate(item["part_2"], p2_path, profile=p1_profile)
         
         # 2. Đọc độ dài của part_1 để tính mốc thời gian bắt đầu khoảng lặng (pause)
         p1_sound = mixer.load_audio(p1_path)
@@ -42,22 +43,18 @@ def generate_pause_handling(generator, mixer, templates, output_base):
         combined_sound_with_silence = combined_sound + trailing_silence
         mixer.save_audio(combined_sound_with_silence, input_wav_path)
         
-        # 4. Ghi file chú thích metadata.json
-        metadata = {
-            "context_text": item["part_1"],
-            "current_turn_text": item["part_2"],
-            "timestamps": [
-                len_p1_sec,
-                len_p1_sec + pause_duration
-            ],
-            "type": "synthetic_pause_handling"
-        }
-        with open(os.path.join(sample_dir, "metadata.json"), "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=4, ensure_ascii=False)
-            
-        # Thêm file clean_input.wav cho đồng nhất với v1.5
-        clean_input_wav_path = os.path.join(sample_dir, "clean_input.wav")
-        mixer.save_audio(combined_sound_with_silence, clean_input_wav_path)
+        # 4. Ghi file chú thích pause.json
+        pause_info = [
+            {
+                "text": "[PAUSE]",
+                "timestamp": [
+                    len_p1_sec,
+                    len_p1_sec + pause_duration
+                ]
+            }
+        ]
+        with open(os.path.join(sample_dir, "pause.json"), "w", encoding="utf-8") as f:
+            json.dump(pause_info, f, indent=4, ensure_ascii=False)
             
         # 5. Dọn dẹp file tạm
         if os.path.exists(p1_path):
@@ -87,21 +84,18 @@ def generate_turn_taking(generator, mixer, templates, output_base):
         sound_with_silence = sound + trailing_silence
         mixer.save_audio(sound_with_silence, input_wav_path)
         
-        # 3. Ghi file chú thích metadata.json
-        metadata = {
-            "current_turn_text": item["text"],
-            "timestamps": [
-                len_sound_sec,
-                0.0
-            ],
-            "type": "candor_turn_taking"
-        }
-        with open(os.path.join(sample_dir, "metadata.json"), "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=4, ensure_ascii=False)
-            
-        # Thêm file clean_input.wav cho đồng nhất với v1.5
-        clean_input_wav_path = os.path.join(sample_dir, "clean_input.wav")
-        mixer.save_audio(sound_with_silence, clean_input_wav_path)
+        # 3. Ghi file chú thích turn_taking.json (mốc kết thúc tại timestamp[0])
+        turn_info = [
+            {
+                "text": "[TURN-TAKING]",
+                "timestamp": [
+                    len_sound_sec,
+                    0.0
+                ]
+            }
+        ]
+        with open(os.path.join(sample_dir, "turn_taking.json"), "w", encoding="utf-8") as f:
+            json.dump(turn_info, f, indent=4, ensure_ascii=False)
 
 def generate_user_interruption(generator, mixer, templates, output_base):
     print("-> Đang sinh dữ liệu cho: synthetic_user_interruption")
@@ -115,10 +109,12 @@ def generate_user_interruption(generator, mixer, templates, output_base):
         # 1. Sinh file context.wav (câu thoại đầu tiên của người dùng)
         context_wav_path = os.path.join(sample_dir, "context.wav")
         generator.generate(item["context"], context_wav_path)
+        context_profile = generator.last_synthesis.get("profile") if generator.last_synthesis else None
+        context_voice = context_profile.get("voice") if context_profile else None
         
         # 2. Sinh file interrupt.wav (câu thoại cướp lời của người dùng)
         interrupt_wav_path = os.path.join(sample_dir, "interrupt.wav")
-        generator.generate(item["interrupt"], interrupt_wav_path)
+        generator.generate(item["interrupt"], interrupt_wav_path, voice=context_voice)
         
         # 3. Tính toán dòng thời gian để ghép thành input.wav
         context_sound = mixer.load_audio(context_wav_path)
@@ -137,22 +133,19 @@ def generate_user_interruption(generator, mixer, templates, output_base):
         input_wav_path = os.path.join(sample_dir, "input.wav")
         mixer.save_audio(context_sound + silence_with_interrupt, input_wav_path)
         
-        # 5. Ghi file chú thích metadata.json
-        metadata = {
-            "context_text": item["context"],
-            "current_turn_text": item["interrupt"],
-            "timestamps": [
-                len_context_sec + interrupt_delay,
-                len_context_sec + interrupt_delay + len_interrupt_sec
-            ],
-            "type": "synthetic_user_interruption"
-        }
-        with open(os.path.join(sample_dir, "metadata.json"), "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=4, ensure_ascii=False)
-            
-        # Thêm file clean_input.wav cho đồng nhất với v1.5 (ngữ cảnh gốc + im lặng)
-        clean_input_wav_path = os.path.join(sample_dir, "clean_input.wav")
-        mixer.save_audio(context_sound + silence_window, clean_input_wav_path)
+        # 5. Ghi file chú thích interrupt.json
+        interrupt_info = [
+            {
+                "context": item["context"],
+                "interrupt": item["interrupt"],
+                "timestamp": [
+                    len_context_sec + interrupt_delay,
+                    len_context_sec + interrupt_delay + len_interrupt_sec
+                ]
+            }
+        ]
+        with open(os.path.join(sample_dir, "interrupt.json"), "w", encoding="utf-8") as f:
+            json.dump(interrupt_info, f, indent=4, ensure_ascii=False)
 
 def main():
     print("=== Khởi chạy sinh dữ liệu Full-Duplex-Bench v1.0 (Tiếng Việt) ===")

@@ -68,13 +68,17 @@ class VietnameseTTSGenerator:
             "openai": "alloy"  # alloy, echo, fable, onyx, nova, shimmer
         }
 
-    def select_profile(self, role="primary"):
-        """Chọn profile TTS theo vai trò hội thoại, có thể tái lập bằng seed."""
+    def select_profile(self, role="primary", voice=None):
+        """Chọn profile TTS theo vai trò hội thoại, có thể lọc theo giọng, có thể tái lập bằng seed."""
         choices = (
             self.profiles.get(role)
             or self.profiles.get("secondary")
             or [EDGE_TTS_DEFAULT_PROFILE]
         )
+        if voice:
+            matching_choices = [c for c in choices if c.get("voice") == voice]
+            if matching_choices:
+                choices = matching_choices
         return dict(self._rng.choice(choices))
 
     def _resolve_profile(self, voice=None, profile=None, role="primary"):
@@ -82,7 +86,7 @@ class VietnameseTTSGenerator:
             selected = {"voice": voice or self.default_voices.get(self.provider)}
             return selected
 
-        selected = dict(profile) if profile is not None else self.select_profile(role)
+        selected = dict(profile) if profile is not None else self.select_profile(role, voice=voice)
         if voice:
             selected["voice"] = voice
 
