@@ -398,17 +398,30 @@ async def batch_process(args):
     success = 0
     for i, f in enumerate(files):
         print(f"\n[{i+1}/{len(files)}] {f}")
-        # out_dir = os.path.join(os.path.dirname(f), "gemini25_native")
-        # os.makedirs(out_dir, exist_ok=True)
         out_wav = os.path.join(os.path.dirname(f), f"{args.prefix}output.wav")
+        combined_wav = os.path.join(os.path.dirname(f), f"{args.prefix}combined.wav")
 
         if os.path.exists(out_wav) and not args.overwrite:
             print("Skip")
+            if not os.path.exists(combined_wav):
+                try:
+                    from pydub import AudioSegment
+                    AudioSegment.from_wav(f).overlay(AudioSegment.from_wav(out_wav)).export(combined_wav, format="wav")
+                    print(f"[INFO] Saved {combined_wav}")
+                except Exception as e:
+                    pass
             success += 1
             continue
 
         try:
             if await process_single_file(f, out_wav, args.overwrite):
+                try:
+                    from pydub import AudioSegment
+                    # Trộn (mix) audio input và output lại với nhau theo cùng một timeline
+                    AudioSegment.from_wav(f).overlay(AudioSegment.from_wav(out_wav)).export(combined_wav, format="wav")
+                    print(f"[INFO] Saved {combined_wav}")
+                except Exception as e:
+                    print(f"[ERROR] Failed to mix combined audio: {e}")
                 success += 1
         except Exception as e:
             print(f"Failed: {e}")
