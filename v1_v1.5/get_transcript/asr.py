@@ -28,7 +28,9 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         "automatic-speech-recognition",
         model="vinai/PhoWhisper-medium",
         chunk_length_s=30,
-        torch_dtype=torch.float16 if "cuda" in device else torch.float32,
+        dtype=torch.float16 if "cuda" in device else torch.float32,
+        model_kwargs={"use_safetensors": False},
+        token=os.getenv("HF_TOKEN") or None,
         device=device,
     )
 
