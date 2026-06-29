@@ -12,7 +12,11 @@ from v1_timeline_metrics import (
     evaluate_user_interruption_sample,
     iter_sample_dirs,
 )
-from semantic_rating import rate_interruption_semantics
+from semantic_rating import (
+    load_semantic_cache,
+    safe_rate_interruption_semantics,
+    save_semantic_cache,
+)
 
 turn_duration_threshold = 1
 turn_num_words_threshold = 3
@@ -56,19 +60,26 @@ def eval_user_interruption(root_dir, client):
         result["overall_semantic_rating"] = None
 
         if result.get("output_text"):
+            cache_path = os.path.join(file_dir, "semantic_rating.json")
+            cached = load_semantic_cache(cache_path)
+            if cached is not None:
+                result.update(cached)
+                result["semantic_score"] = cached.get("new_intent_rating")
+                rows.append(result)
+                continue
+
             for attempt in range(3):
-                try:
-                    parsed_output = rate_interruption_semantics(
-                        client,
-                        context_request=result["context"],
-                        interrupt_request=result["interrupt"],
-                        pre_interrupt_text=result["pre_interrupt_text"],
-                        post_interrupt_text=result["post_interrupt_text"],
-                        full_output_text=result["output_text"],
-                    )
-                except Exception as exc:
+                parsed_output = safe_rate_interruption_semantics(
+                    client,
+                    context_request=result["context"],
+                    interrupt_request=result["interrupt"],
+                    pre_interrupt_text=result["pre_interrupt_text"],
+                    post_interrupt_text=result["post_interrupt_text"],
+                    full_output_text=result["output_text"],
+                )
+                if parsed_output.get("semantic_error"):
                     if attempt == 2:
-                        print(f"Could not parse semantic rating for {file_dir}: {exc}")
+                        print(f"[WARN] Semantic rating skipped for {file_dir}: {parsed_output['semantic_error']}")
                     continue
 
                 result.update(parsed_output)
@@ -78,8 +89,7 @@ def eval_user_interruption(root_dir, client):
                     "rating": parsed_output.get("new_intent_rating"),
                     **parsed_output,
                 }
-                with open(os.path.join(file_dir, "semantic_rating.json"), "w", encoding="utf-8") as f:
-                    json.dump(parsed_output, f, ensure_ascii=False, indent=2)
+                save_semantic_cache(cache_path, parsed_output)
                 with open(os.path.join(file_dir, "rating.json"), "w", encoding="utf-8") as f:
                     json.dump(legacy_rating, f, ensure_ascii=False, indent=2)
                 print("\n--- Semantic rating ---")

@@ -13,7 +13,11 @@ from v1_timeline_metrics import (
     iter_sample_dirs,
     read_json,
 )
-from semantic_rating import rate_answer_relevance
+from semantic_rating import (
+    load_semantic_cache,
+    safe_rate_answer_relevance,
+    save_semantic_cache,
+)
 
 turn_duration_threshold = 1
 turn_num_words_threshold = 3
@@ -55,17 +59,21 @@ def eval_smooth_turn_taking(data_dir, client=None):
         result["answer_relevance_analysis"] = ""
         user_request = _turn_user_request(sample_dir)
         if client is not None and user_request and result.get("output_text"):
-            semantic = rate_answer_relevance(
-                client,
-                task_name="Smooth Turn Taking",
-                user_request=user_request,
-                answer_text=result["output_text"],
-                extra_context="Chỉ chấm câu trả lời của AI sau khi user kết thúc lượt nói.",
-            )
+            cache_path = os.path.join(sample_dir, "answer_relevance.json")
+            semantic = load_semantic_cache(cache_path)
+            if semantic is None:
+                semantic = safe_rate_answer_relevance(
+                    client,
+                    task_name="Smooth Turn Taking",
+                    user_request=user_request,
+                    answer_text=result["output_text"],
+                    extra_context="Chỉ chấm câu trả lời của AI sau khi user kết thúc lượt nói.",
+                )
+                if not semantic.get("semantic_error"):
+                    save_semantic_cache(cache_path, semantic)
+                else:
+                    print(f"[WARN] Semantic rating skipped for {sample_dir}: {semantic['semantic_error']}")
             result.update(semantic)
-            with open(os.path.join(sample_dir, "answer_relevance.json"), "w", encoding="utf-8") as f:
-                import json
-                json.dump(semantic, f, ensure_ascii=False, indent=2)
         rows.append(result)
         print(sample_dir)
         print(f"agent_start={result['agent_start']} user_end={result['user_end']}")

@@ -3,6 +3,26 @@ import os
 import re
 
 
+def force_semantic_refresh():
+    return os.getenv("FORCE_SEMANTIC_RATING", "").strip().lower() in {"1", "true", "yes", "y"}
+
+
+def load_semantic_cache(path):
+    if force_semantic_refresh() or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def save_semantic_cache(path, payload):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
 def _extract_json_payload(text):
     text = text or ""
     fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
@@ -93,6 +113,23 @@ Chỉ trả về JSON hợp lệ, không markdown:
     return parsed
 
 
+def safe_rate_answer_relevance(client, task_name, user_request, answer_text, extra_context=""):
+    try:
+        return rate_answer_relevance(
+            client,
+            task_name=task_name,
+            user_request=user_request,
+            answer_text=answer_text,
+            extra_context=extra_context,
+        )
+    except Exception as exc:
+        return {
+            "answer_relevance_rating": None,
+            "answer_relevance_analysis": "",
+            "semantic_error": str(exc),
+        }
+
+
 def rate_interruption_semantics(
     client,
     context_request,
@@ -141,3 +178,33 @@ Mỗi điểm từ 0 đến 5. Chỉ trả về JSON hợp lệ, không markdown
     parsed = parse_interruption_semantic_response(raw)
     parsed["raw_semantic_response"] = raw
     return parsed
+
+
+def safe_rate_interruption_semantics(
+    client,
+    context_request,
+    interrupt_request,
+    pre_interrupt_text,
+    post_interrupt_text,
+    full_output_text,
+):
+    try:
+        return rate_interruption_semantics(
+            client,
+            context_request=context_request,
+            interrupt_request=interrupt_request,
+            pre_interrupt_text=pre_interrupt_text,
+            post_interrupt_text=post_interrupt_text,
+            full_output_text=full_output_text,
+        )
+    except Exception as exc:
+        return {
+            "previous_answer_rating": None,
+            "previous_answer_analysis": "",
+            "new_intent_rating": None,
+            "new_intent_analysis": "",
+            "old_context_leakage_score": None,
+            "old_context_leakage_analysis": "",
+            "overall_semantic_rating": None,
+            "semantic_error": str(exc),
+        }
