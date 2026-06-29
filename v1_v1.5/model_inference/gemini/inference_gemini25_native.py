@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from glob import glob
-from timeline_audio import align_response_stem_to_timeline
+from timeline_audio import pad_timeline_wav_to_min_duration
 
 # Load environment variables
 load_dotenv()
@@ -361,17 +361,11 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     await recorder_task
 
     response_start_sec = recorder.first_audio_wall_sec
-    # Ensure minimum duration matches input
-    min_frames = max(0, int(round(duration * RECEIVE_SAMPLE_RATE)))
-    trailing_silence = min_frames - recorder.samples_written
-    if trailing_silence > 0:
-        with wave.open(output_wav, "ab" if os.path.exists(output_wav) else "wb") as wf:
-            if not os.path.exists(output_wav):
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(RECEIVE_SAMPLE_RATE)
-            wf.writeframes(b"\x00\x00" * trailing_silence)
-    output_duration_sec = max(duration, (response_start_sec or 0.0) + recorder.response_duration_sec)
+    output_duration_sec = pad_timeline_wav_to_min_duration(
+        output_wav,
+        sample_rate=RECEIVE_SAMPLE_RATE,
+        min_duration_sec=duration,
+    )
     timing = {
         "input_duration_sec": duration,
         "sent_audio_duration_sec": sent_audio_duration,

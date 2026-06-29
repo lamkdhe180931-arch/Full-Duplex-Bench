@@ -83,6 +83,27 @@ class TimelineAudioTest(unittest.TestCase):
             self.assertGreater(max(abs(x) for x in aligned[sample_rate // 2 : sample_rate]), 10000)
             self.assertEqual(max(abs(x) for x in aligned[sample_rate * 2 :]), 0)
 
+    def test_pad_timeline_wav_extends_short_output_without_append_mode(self):
+        module = load_gemini_module()
+        sample_rate = 24000
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "output.wav"
+            write_constant_wav(output, sample_rate, seconds=1, value=12000)
+
+            duration = module.pad_timeline_wav_to_min_duration(
+                str(output),
+                sample_rate=sample_rate,
+                min_duration_sec=3.0,
+            )
+
+            sr, padded = read_wav_samples(output)
+            self.assertEqual(sr, sample_rate)
+            self.assertEqual(duration, 3.0)
+            self.assertEqual(len(padded), sample_rate * 3)
+            self.assertGreater(max(abs(x) for x in padded[:sample_rate]), 10000)
+            self.assertEqual(max(abs(x) for x in padded[sample_rate:]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
