@@ -1,10 +1,26 @@
 [
   {
     "id": "interrupt_001",
-    "context": "Đặt vé máy bay đi Đà Nẵng giúp tôi.",
-    "agent_context": "Dạ vâng, để đặt vé máy bay đi Đà Nẵng, tôi cần xin một số thông tin của quý khách như họ và tên...",
-    "interrupt": "Đợi đã, cho tôi đổi điểm đến thành Nha Trang nhé",
+    "context": "Hãy lên cho tôi một lịch trình du lịch Sapa trong ba ngày hai đêm.",
+    "agent_context": "Dạ vâng, để lên lịch trình đi Sapa ba ngày hai đêm, trước tiên tôi xin gợi ý ngày đầu tiên chúng ta sẽ đi...",
+    "interrupt": "À từ từ, tôi đổi ý rồi, chuyển lịch trình sang đi Phú Quốc nhé.",
     "interrupt_delay_sec": 2.5,
-    "description": "Người dùng ngắt lời Agent để đổi ý định giữa chừng."
+    "description": "Đổi hoàn toàn chủ đề sau 2.5s"
+  },
+  {
+    "id": "interrupt_002",
+    "context": "Cho tôi biết cách pha một cốc cà phê phin đúng chuẩn đi.",
+    "agent_context": "Dạ được, để pha một cốc cà phê phin ngon, bạn cần chuẩn bị cà phê bột loại ngon, phin nhôm, nước sôi...",
+    "interrupt": "Thôi tôi không uống cà phê nữa đâu, hướng dẫn pha trà đào đi.",
+    "interrupt_delay_sec": 3.0,
+    "description": "Đổi hoàn toàn ý định sau 3s"
+  },
+  {
+    "id": "interrupt_003",
+    "context": "Kể cho tôi nghe tóm tắt về nội dung của bộ phim Titanic.",
+    "agent_context": "Bộ phim Titanic kể về một câu chuyện tình yêu đầy bi kịch trên chuyến tàu lịch sử cùng tên. Jack là một họa sĩ nghèo...",
+    "interrupt": "Chờ đã, đừng kể đoạn kết nhé, tôi không muốn bị spoil đâu.",
+    "interrupt_delay_sec": 2.5,
+    "description": "Đưa ra ràng buộc mới giữa chừng"
   }
 ]

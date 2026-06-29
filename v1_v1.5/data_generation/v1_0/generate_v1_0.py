@@ -12,14 +12,13 @@ from core.audio_mixer import AudioMixer
 def generate_pause_handling(generator, mixer, templates, output_base):
     print("-> Đang sinh dữ liệu cho: synthetic_pause_handling")
     task_dir = os.path.join(output_base, "synthetic_pause_handling")
-    
-    # Chúng ta sinh thử nghiệm với khoảng lặng nghỉ ở giữa là 1.5 giây
-    pause_duration = 1.5
-    
     for item in templates:
         sample_id = item["id"]
         sample_dir = os.path.join(task_dir, sample_id)
         os.makedirs(sample_dir, exist_ok=True)
+        
+        # Đọc khoảng lặng từ file JSON (mặc định là 1.5s nếu không có)
+        pause_duration = item.get("pause_duration_sec", 1.5)
         
         # 1. Tạo các file audio tạm cho part_1 và part_2
         p1_path = os.path.join(sample_dir, "temp_p1.wav")
