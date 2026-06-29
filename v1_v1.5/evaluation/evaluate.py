@@ -68,17 +68,17 @@ def main():
             raise ValueError("GEMINI_API_KEY not found in environment.")
         client = genai.Client(api_key=gemini_api_key)
 
-        print("\n=== RUNNING ALL V1 BENCHMARKS ===")
-        print("1. Running Pause Handling...")
+        print("\n=== ĐANG CHẠY TOÀN BỘ BENCHMARK V1 ===")
+        print("1. Đang chấm điểm Pause Handling (Xử lý khoảng lặng)...")
         ph_res = eval_pause_handling(os.path.join(args.root_dir, "synthetic_pause_handling"))
         
-        print("\n2. Running Candor Turn Taking...")
+        print("\n2. Đang chấm điểm Candor Turn Taking (Luân phiên lượt lời)...")
         stt_res = eval_smooth_turn_taking(os.path.join(args.root_dir, "candor_turn_taking"))
         
-        print("\n3. Running User Interruption...")
+        print("\n3. Đang chấm điểm User Interruption (Xử lý khi bị ngắt lời)...")
         ui_res = eval_user_interruption(os.path.join(args.root_dir, "synthetic_user_interruption"), client)
 
-        print("\n=== AGGREGATING RESULTS ===")
+        print("\n=== ĐANG TỔNG HỢP KẾT QUẢ ===")
         summary_prompt = f"""
 Dưới đây là điểm benchmark âm thanh song công (Full-Duplex V1) của agent.
 1. Pause Handling (Xử lý khoảng lặng):

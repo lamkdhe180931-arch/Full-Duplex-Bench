@@ -44,24 +44,22 @@ def eval_user_interruption(root_dir, client):
         raise ValueError("Gemini client is required for user_interruption rating.")
 
     system_msg = """
-   The scenario is that the user and AI are talking in the spoken conversation.
-   The user first speaks, then the AI responds. But when AI is speaking, the user interrupts the AI's turn.
-   Your task is to rate the quality of AI's response after the user interrupt the turn.
+   Tình huống là người dùng và AI đang trò chuyện bằng giọng nói.
+   Người dùng nói trước, sau đó AI phản hồi. Nhưng khi AI đang nói, người dùng bất ngờ ngắt lời AI.
+   Nhiệm vụ của bạn là đánh giá chất lượng câu phản hồi của AI sau khi bị người dùng ngắt lời.
 
+   Dưới đây là thang điểm đánh giá (từ 0 đến 5, 0 là tệ nhất và 5 là tốt nhất):
+   - 0: Phản hồi của AI hoàn toàn không liên quan đến câu ngắt lời của người dùng.
+   - 1: Phản hồi của AI không liên quan đến câu ngắt lời của người dùng.
+   - 2: Phản hồi của AI hơi có chút liên quan đến câu ngắt lời.
+   - 3: Phản hồi của AI có liên quan đến câu ngắt lời.
+   - 4: Phản hồi của AI rất liên quan và bám sát câu ngắt lời.
+   - 5: Phản hồi của AI hoàn hảo và xử lý xuất sắc câu ngắt lời.
 
-   Below is the rating guideline (from 0 to 5, 0 is the worst and 5 is the best):
-   - 0: The AI's response is totally unrelated to the user's interrupting turn.
-   - 1: The AI's response is not related to the user's interrupting turn.
-   - 2: The AI's response is slightly related to the user's interrupting turn.
-   - 3: The AI's response is related to the user's interrupting turn.
-   - 4: The AI's response is highly related to the user's interrupting turn.
-   - 5: The AI's response is perfectly related to the user's interrupting turn.
-
-
-   Firstly, briefly analyze the user's interrupting turn and the AI's response
-   Then, you must return the overall output as the following format:
-   Analysis: [Your analysis].
-   I would rate the AI's response as [Rating].
+   Đầu tiên, hãy phân tích ngắn gọn câu ngắt lời của người dùng và phản hồi của AI.
+   Sau đó, bạn BẮT BUỘC phải trả về kết quả theo đúng định dạng sau:
+   Analysis: [Bài phân tích của bạn bằng tiếng Việt].
+   I would rate the AI's response as [Điểm số].
    """
 
     file_dirs = []
@@ -144,11 +142,11 @@ def eval_user_interruption(root_dir, client):
             take_turn_list.append(TOR)
             if TOR == 1:
                 user_msg = f"""
-                - Contextual user turn: {in_before_interrupt_text}
-                - User interrupting turn (occurred at [{input_start_time:.2f}-{input_end_time:.2f}]): {in_interrupt_text}
-                - AI's full response (with timestamps): {ai_timestamped_text}
+                - Câu mồi ban đầu của user: {in_before_interrupt_text}
+                - Câu ngắt lời của user (xảy ra ở đoạn [{input_start_time:.2f}-{input_end_time:.2f}] giây): {in_interrupt_text}
+                - Toàn bộ phản hồi của AI (kèm mốc thời gian): {ai_timestamped_text}
                 
-                Please look at the timestamps to determine what the AI said AFTER the user's interruption finished at {input_end_time:.2f}s, and evaluate the quality of that specific response.
+                Hãy nhìn vào các mốc thời gian để xác định chính xác những gì AI đã nói SAU KHI người dùng ngắt lời xong ở mốc {input_end_time:.2f}s, và đánh giá chất lượng của riêng đoạn phản hồi đó.
                 """
 
                 prediction = generate_gemini_rating(client, system_msg, user_msg)
