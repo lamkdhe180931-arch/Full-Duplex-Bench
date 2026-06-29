@@ -73,11 +73,8 @@ def eval_smooth_turn_taking(data_dir):
                 latency = output_start_time - input_end_time
 
         take_turn_list.append(TOR)
-        if TOR == 1:
-            if latency < 0:
-                latency_list.append(0)
-            elif latency >= 0:
-                latency_list.append(latency)
+        if TOR == 1 and latency is not None:
+            latency_list.append(latency)
 
         print(audio_output_file)
         print(f"the TOR is {TOR}")

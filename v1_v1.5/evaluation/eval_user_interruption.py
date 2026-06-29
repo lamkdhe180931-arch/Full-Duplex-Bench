@@ -172,9 +172,8 @@ def eval_user_interruption(root_dir, client):
                 with open(os.path.join(file_dir, "rating.json"), "w") as f:
                     json.dump(parsed_output, f)
 
-                if latency < 0:
-                    latency_list.append(0)
-                elif latency >= 0:
+                # Lấy kết quả thực tế (chấp nhận cả số âm nếu AI nói trước khi user nói xong)
+                if latency is not None:
                     latency_list.append(latency)
 
             break
