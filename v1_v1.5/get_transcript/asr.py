@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 MODEL_NAME = ""
 ASR_MODEL_ID = "vinai/PhoWhisper-medium"
+_ASR_PIPELINE = None
 
 
 def disable_safetensors_auto_conversion():
@@ -29,14 +30,11 @@ def disable_safetensors_auto_conversion():
     safetensors_conversion.auto_conversion = _skip_auto_conversion
 
 
-def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
-    # Collect all matching audio files under the root directory
-    audio_paths = sorted(glob(f"{data_path}/*/{MODEL_NAME}{audio_name}"))
+def get_asr_pipeline():
+    global _ASR_PIPELINE
+    if _ASR_PIPELINE is not None:
+        return _ASR_PIPELINE
 
-    # JSON output filename mirrors the audio filename (e.g. clean_input.wav -> clean_input.json)
-    json_name = audio_name.rsplit(".", 1)[0] + ".json"
-
-    # Load the pretrained PhoWhisper model and move to GPU
     device = "cpu"
     if torch.cuda.is_available():
         # Dùng GPU số 2 (cuda:1) nếu có 2 GPU để tránh tranh chấp bộ nhớ với GPU số 1 (cuda:0)
@@ -59,7 +57,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         token=hf_token,
     )
 
-    pipe = pipeline(
+    _ASR_PIPELINE = pipeline(
         "automatic-speech-recognition",
         model=model,
         tokenizer=processor.tokenizer,
@@ -68,6 +66,16 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         dtype=dtype,
         device=device,
     )
+    return _ASR_PIPELINE
+
+
+def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
+    # Collect all matching audio files under the root directory
+    audio_paths = sorted(glob(f"{data_path}/*/{MODEL_NAME}{audio_name}"))
+
+    # JSON output filename mirrors the audio filename (e.g. clean_input.wav -> clean_input.json)
+    json_name = audio_name.rsplit(".", 1)[0] + ".json"
+    pipe = get_asr_pipeline()
 
     for audio_path in tqdm(audio_paths):
         print(audio_path)
@@ -166,6 +174,21 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
             torch.cuda.empty_cache()
 
 
+def transcribe_v1_benchmark(root_dir, audio_name="output.wav"):
+    tasks = [
+        ("synthetic_pause_handling", "default"),
+        ("candor_turn_taking", "default"),
+        ("synthetic_user_interruption", "user_interruption"),
+    ]
+    for task_name, task_mode in tasks:
+        task_dir = os.path.join(root_dir, task_name)
+        if not os.path.isdir(task_dir):
+            continue
+        json_name = audio_name.rsplit(".", 1)[0] + ".json"
+        print(f"ASR {audio_name} -> {json_name}: {task_name}")
+        get_time_aligned_transcription(task_dir, task_mode, audio_name)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Transcribe full audio or only after a user interruption"
@@ -173,8 +196,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--root_dir",
         type=str,
-        required=True,
+        default=None,
         help="Root folder containing subfolders with output.wav (and interrupt.json)",
+    )
+    parser.add_argument(
+        "--v1_benchmark_root",
+        type=str,
+        default=None,
+        help="Root folder containing v1 task folders. Loads PhoWhisper once and transcribes all v1 tasks.",
     )
     parser.add_argument(
         "--task",
@@ -193,4 +222,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    get_time_aligned_transcription(args.root_dir, args.task, args.audio_name)
+    if args.v1_benchmark_root:
+        transcribe_v1_benchmark(args.v1_benchmark_root, args.audio_name)
+    else:
+        if not args.root_dir:
+            raise ValueError("--root_dir is required unless --v1_benchmark_root is set.")
+        get_time_aligned_transcription(args.root_dir, args.task, args.audio_name)
