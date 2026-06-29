@@ -17,8 +17,9 @@ def generate_pause_handling(generator, mixer, templates, output_base):
         sample_dir = os.path.join(task_dir, sample_id)
         os.makedirs(sample_dir, exist_ok=True)
         
-        # Đọc khoảng lặng từ file JSON (mặc định là 1.5s nếu không có)
-        pause_duration = item.get("pause_duration_sec", 1.5)
+        if "pause_duration_sec" not in item:
+            raise KeyError(f"{sample_id} missing required field: pause_duration_sec")
+        pause_duration = float(item["pause_duration_sec"])
         
         # 1. Tạo các file audio tạm cho part_1 và part_2
         p1_path = os.path.join(sample_dir, "temp_p1.wav")
