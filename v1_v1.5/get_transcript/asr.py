@@ -136,15 +136,26 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
 
         import tempfile
 
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            sf.write(tmp.name, waveform, sr)
-            prediction = pipe(
-                tmp.name,
-                return_timestamps="word",
-                generate_kwargs={"language": "vietnamese"}
-            )
-        # remove the temp file so you don't leak disk
-        os.unlink(tmp.name)
+        tmp_name = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_name = tmp.name
+                sf.write(tmp.name, waveform, sr)
+                prediction = pipe(
+                    tmp.name,
+                    return_timestamps="word",
+                    generate_kwargs={"language": "vietnamese"}
+                )
+        except ValueError as exc:
+            print(f"[WARN] ASR skipped malformed or empty audio: {audio_path}: {exc}")
+            result_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", json_name)
+            os.makedirs(os.path.dirname(result_path), exist_ok=True)
+            with open(result_path, "w") as f:
+                json.dump({"text": "", "chunks": []}, f, indent=4)
+            continue
+        finally:
+            if tmp_name and os.path.exists(tmp_name):
+                os.unlink(tmp_name)
 
         # Build the output dict, adjusting each timestamp by the offset
         chunks = []

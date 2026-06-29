@@ -66,6 +66,24 @@ CONFIG = {
 }
 
 
+def mix_combined_audio(input_wav: str, output_wav: str, combined_wav: str):
+    from pydub import AudioSegment
+    import json
+
+    sound_in = AudioSegment.from_wav(input_wav).set_frame_rate(16000).set_channels(1).pan(-1.0)
+    sound_out = AudioSegment.from_wav(output_wav).set_frame_rate(16000).set_channels(1).pan(1.0)
+    timing_path = os.path.join(os.path.dirname(output_wav), "inference_timing.json")
+    position_ms = 0
+    if os.path.exists(timing_path):
+        with open(timing_path, "r", encoding="utf-8") as tf:
+            position_ms = int((json.load(tf).get("response_start_sec") or 0) * 1000)
+
+    total_ms = max(len(sound_in), position_ms + len(sound_out))
+    base = AudioSegment.silent(duration=total_ms, frame_rate=16000).set_channels(2)
+    combined = base.overlay(sound_in, position=0).overlay(sound_out, position=position_ms)
+    combined.export(combined_wav, format="wav")
+
+
 class SynchronizedRecorder:
     """Records only Gemini response audio, then stops dynamically."""
 
@@ -354,17 +372,7 @@ async def batch_process(args):
             print("Skip")
             if not os.path.exists(combined_wav):
                 try:
-                    from pydub import AudioSegment
-                    # Tách kênh Stereo: User (Tai trái), AI (Tai phải)
-                    import json
-                    sound_in = AudioSegment.from_wav(f).pan(-1.0)
-                    sound_out = AudioSegment.from_wav(out_wav).pan(1.0)
-                    timing_path = os.path.join(os.path.dirname(out_wav), "inference_timing.json")
-                    position_ms = 0
-                    if os.path.exists(timing_path):
-                        with open(timing_path, "r", encoding="utf-8") as tf:
-                            position_ms = int((json.load(tf).get("response_start_sec") or 0) * 1000)
-                    sound_in.overlay(sound_out, position=position_ms).export(combined_wav, format="wav")
+                    mix_combined_audio(f, out_wav, combined_wav)
                     print(f"[INFO] Saved {combined_wav}")
                 except Exception as e:
                     pass
@@ -374,18 +382,7 @@ async def batch_process(args):
         try:
             if await process_single_file(f, out_wav, args.overwrite, args.max_response_sec):
                 try:
-                    from pydub import AudioSegment
-                    # Trộn (mix) audio input và output lại với nhau theo cùng một timeline
-                    # Tách kênh Stereo: User (Tai trái), AI (Tai phải) để không bị loạn âm thanh
-                    import json
-                    sound_in = AudioSegment.from_wav(f).pan(-1.0)
-                    sound_out = AudioSegment.from_wav(out_wav).pan(1.0)
-                    timing_path = os.path.join(os.path.dirname(out_wav), "inference_timing.json")
-                    position_ms = 0
-                    if os.path.exists(timing_path):
-                        with open(timing_path, "r", encoding="utf-8") as tf:
-                            position_ms = int((json.load(tf).get("response_start_sec") or 0) * 1000)
-                    sound_in.overlay(sound_out, position=position_ms).export(combined_wav, format="wav")
+                    mix_combined_audio(f, out_wav, combined_wav)
                     print(f"[INFO] Saved {combined_wav}")
                 except Exception as e:
                     print(f"[ERROR] Failed to mix combined audio: {e}")
