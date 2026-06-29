@@ -85,10 +85,17 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         if waveform.ndim > 1:
             waveform = waveform.mean(axis=1)
 
-        # Default offset is zero (no cropping)
+        # Default offset maps output.wav timestamps back to the original input timeline.
         offset = 0.0
+        timing_path = os.path.join(os.path.dirname(audio_path), "inference_timing.json")
+        if os.path.exists(timing_path):
+            with open(timing_path, "r", encoding="utf-8") as f:
+                offset = json.load(f).get("response_start_sec") or 0.0
 
-        if task == "user_interruption":
+        # Legacy synchronized output.wav included the full input timeline, so ASR
+        # cropped before the interrupt end. Dynamic output.wav contains only the
+        # Gemini response, so inference_timing.json supplies the timeline offset.
+        if task == "user_interruption" and not os.path.exists(timing_path):
             # Load the interrupt metadata to get [start, end] timestamps
             meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "interrupt.json")
             if not os.path.exists(meta_path):
@@ -120,6 +127,12 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
             padding_samples = int(0.5 * sr)
             end_idx = min(len(waveform), last_active_idx + padding_samples)
             waveform = waveform[:end_idx]
+        else:
+            result_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", json_name)
+            os.makedirs(os.path.dirname(result_path), exist_ok=True)
+            with open(result_path, "w") as f:
+                json.dump({"text": "", "chunks": []}, f, indent=4)
+            continue
 
         import tempfile
 

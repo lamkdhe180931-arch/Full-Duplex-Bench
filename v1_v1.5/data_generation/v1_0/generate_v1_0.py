@@ -32,15 +32,9 @@ def generate_pause_handling(generator, mixer, templates, output_base):
         p1_sound = mixer.load_audio(p1_path)
         len_p1_sec = len(p1_sound) / 1000.0
         
-        # 3. Ghép nối 2 part bằng khoảng lặng ở giữa và thêm 15 giây lặng phía sau
+        # 3. Ghép nối 2 part bằng khoảng lặng ở giữa. Không thêm response window tĩnh.
         input_wav_path = os.path.join(sample_dir, "input.wav")
         mixer.concat_with_silence([p1_path, p2_path], pause_duration, input_wav_path)
-        
-        # Thêm 15 giây im lặng ở cuối cho phản hồi của Agent
-        combined_sound = mixer.load_audio(input_wav_path)
-        trailing_silence = AudioSegment.silent(duration=15000, frame_rate=16000)
-        combined_sound_with_silence = combined_sound + trailing_silence
-        mixer.save_audio(combined_sound_with_silence, input_wav_path)
         
         # 4. Ghi file chú thích pause.json
         pause_info = [
@@ -78,10 +72,7 @@ def generate_turn_taking(generator, mixer, templates, output_base):
         sound = mixer.load_audio(input_wav_path)
         len_sound_sec = len(sound) / 1000.0
         
-        # Thêm 15 giây im lặng ở cuối câu thoại đầu vào cho phản hồi của Agent
-        trailing_silence = AudioSegment.silent(duration=15000, frame_rate=16000)
-        sound_with_silence = sound + trailing_silence
-        mixer.save_audio(sound_with_silence, input_wav_path)
+        # Không thêm response window tĩnh; input.wav kết thúc khi user dứt câu.
         
         # 3. Ghi file chú thích turn_taking.json (mốc kết thúc tại timestamp[0])
         turn_info = [
@@ -123,12 +114,13 @@ def generate_user_interruption(generator, mixer, templates, output_base):
         interrupt_sound = mixer.load_audio(interrupt_wav_path)
         len_interrupt_sec = len(interrupt_sound) / 1000.0
         
-        # Thêm 15 giây im lặng đằng sau context. Câu thoại ngắt lời sẽ nằm trong khoảng 15s này
-        silence_window = AudioSegment.silent(duration=15000, frame_rate=16000)
+        # Chỉ mở rộng input vừa đủ để chứa câu interrupt đúng mốc thời gian.
         interrupt_pos_ms = int(interrupt_delay * 1000)
+        window_duration_ms = interrupt_pos_ms + len(interrupt_sound)
+        silence_window = AudioSegment.silent(duration=window_duration_ms, frame_rate=16000)
         silence_with_interrupt = silence_window.overlay(interrupt_sound, position=interrupt_pos_ms)
         
-        # input.wav = context_sound + silence_with_interrupt
+        # input.wav = context_sound + silence đủ tới hết interrupt
         input_wav_path = os.path.join(sample_dir, "input.wav")
         mixer.save_audio(context_sound + silence_with_interrupt, input_wav_path)
         

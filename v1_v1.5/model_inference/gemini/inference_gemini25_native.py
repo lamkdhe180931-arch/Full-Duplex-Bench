@@ -67,40 +67,26 @@ CONFIG = {
 
 
 class SynchronizedRecorder:
-    """
-    Time-synchronized audio recorder.
-    Uses wall-clock timing to ensure output matches input timeline.
-    """
-    
-    def __init__(self, out_sr: int, target_sec: float, outfile: str):
+    """Records only Gemini response audio, then stops dynamically."""
+
+    def __init__(self, out_sr: int, outfile: str, session_start_time: float):
         self.out_sr = out_sr
-        self.target_samples = int(round(target_sec * out_sr))
         self.queue: asyncio.Queue[bytes] = asyncio.Queue()
         self.outfile = outfile
-        
-        # Timing - smaller tick for more responsive interrupt handling
-        self.tick_samples = out_sr * REC_TICK_MS // 1000
-        self._silence = np.zeros(self.tick_samples, dtype=np.int16)
-        
-        # State
-        self.count = 0
-        self.muted = False
         self.running = True
-        self.start_time = None
-        
-        # Stats
-        self.audio_bytes_written = 0
-        self.silence_samples_written = 0
-        self.current_sender_time = 0.0
-    
+        self.session_start_time = session_start_time
+        self.first_audio_wall_sec = None
+        self.last_audio_wall_sec = None
+        self.samples_written = 0
+
     async def add(self, pcm: bytes):
-        """Add audio data. Un-mutes if muted."""
-        if self.muted:
-            self.muted = False
+        now = time.time() - self.session_start_time
+        if self.first_audio_wall_sec is None:
+            self.first_audio_wall_sec = now
+        self.last_audio_wall_sec = now
         await self.queue.put(pcm)
-    
+
     def interrupt(self):
-        """Immediately stop speaking - clear queue and mute."""
         cleared = 0
         while not self.queue.empty():
             try:
@@ -108,91 +94,35 @@ class SynchronizedRecorder:
                 cleared += 1
             except asyncio.QueueEmpty:
                 break
-        self.muted = True
-        print(f"[DEBUG] Recorder: INTERRUPTED! Cleared {cleared} chunks, writing silence")
-    
+        print(f"[DEBUG] Recorder: INTERRUPTED! Cleared {cleared} queued chunks")
+
     def stop(self):
         self.running = False
-    
+
+    @property
+    def response_duration_sec(self) -> float:
+        return self.samples_written / self.out_sr
+
     async def run(self):
-        """
-        Main loop - keeps running until stop() is called.
-        Writes audio when available, silence when muted/empty.
-        """
         print("[DEBUG] Recorder: Started")
-        
         os.makedirs(os.path.dirname(self.outfile), exist_ok=True)
         wf = wave.open(self.outfile, "wb")
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(self.out_sr)
-        
+
         try:
-            # Keep running until stop() is called AND we've written enough samples
-            while self.running or self.count < self.target_samples:
-                # Stop if we've written enough AND stop was requested
-                if not self.running and self.count >= self.target_samples:
-                    break
-                
-                # If NOT muted and have audio → write audio
-                if not self.muted and not self.queue.empty():
-                    pcm = await self.queue.get()
-                    smp = np.frombuffer(pcm, dtype=np.int16)
-                    
-                    # Write audio and track it
-                    if self.count + len(smp) <= self.target_samples:
-                        wf.writeframes(pcm)
-                        self.count += len(smp)
-                        self.audio_bytes_written += len(pcm)  # Track actual bytes
-                    elif self.count < self.target_samples:
-                        # Write partial
-                        n = self.target_samples - self.count
-                        wf.writeframes(smp[:n].tobytes())
-                        self.audio_bytes_written += n * 2
-                        self.count = self.target_samples
-                else:
-                    # Write silence (but only if we haven't reached target yet)
-                    if self.count >= self.target_samples:
-                        # Wait a bit before checking again
-                        await asyncio.sleep(0.01)
-                        continue
-                    
-                    # Pacify silence writing based on sender's progress to ensure alignment during cooldowns
-                    if self.running and self.count / self.out_sr >= self.current_sender_time:
-                        await asyncio.sleep(0.01)
-                        continue
-                    
-                    remain = self.target_samples - self.count
-                    n = min(self.tick_samples, remain)
-                    smp = self._silence[:n]
-                    
-                    wf.writeframes(smp.tobytes())
-                    self.count += n
-                    self.silence_samples_written += n
-                
-                # IMPORTANT: Simulate real-time pacing!
-                # If we wrote audio, sleep for its duration
-                if not self.muted and 'smp' in locals() and len(smp) > 0:
-                    duration_sec = len(smp) / self.out_sr
-                    await asyncio.sleep(duration_sec)
-                # If we wrote silence (muted/empty), sleep for one tick
-                elif self.muted and self.queue.empty():
-                    await asyncio.sleep(self.tick_samples / self.out_sr)
-            
-            # Fill any remaining silence if needed
-            if self.count < self.target_samples:
-                remaining = self.target_samples - self.count
-                wf.writeframes(np.zeros(remaining, dtype=np.int16).tobytes())
-                self.silence_samples_written += remaining
-                self.count = self.target_samples
-                
+            while self.running or not self.queue.empty():
+                try:
+                    pcm = await asyncio.wait_for(self.queue.get(), timeout=0.05)
+                except asyncio.TimeoutError:
+                    continue
+                wf.writeframes(pcm)
+                self.samples_written += len(pcm) // 2
         finally:
             wf.close()
-        
-        audio_sec = self.audio_bytes_written / 2 / self.out_sr
-        silence_sec = self.silence_samples_written / self.out_sr
-        print(f"[DEBUG] Recorder: Done. Audio: {audio_sec:.2f}s, Silence: {silence_sec:.2f}s")
 
+        print(f"[DEBUG] Recorder: Done. Response audio: {self.response_duration_sec:.2f}s")
 
 def resample_to_16k(input_path: Path) -> Tuple[Path, float]:
     """Resample to 16kHz mono."""
@@ -234,6 +164,7 @@ async def run_session(
     start_idx: int,
     recorder: SynchronizedRecorder,
     session_start_time: float,
+    max_response_sec: float,
 ) -> int:
     """
     Run one session.
@@ -316,17 +247,19 @@ async def run_session(
         receiver_task = asyncio.create_task(receiver())
         
         await sender_task
-        
+
         try:
-            await asyncio.wait_for(receiver_task, timeout=5.0)
+            await asyncio.wait_for(receiver_task, timeout=max_response_sec)
         except asyncio.TimeoutError:
-            print(f"[DEBUG][Session {session_id}] Timeout")
+            print(f"[DEBUG][Session {session_id}] Response timeout after {max_response_sec:.1f}s")
+            session_done = True
+            recorder.stop()
             receiver_task.cancel()
     
     return idx
 
 
-async def process_single_file(input_wav: str, output_wav: str, overwrite: bool = True) -> bool:
+async def process_single_file(input_wav: str, output_wav: str, overwrite: bool = True, max_response_sec: float = 30.0) -> bool:
     """Process file with time-synchronized multi-session approach."""
     input_path = Path(input_wav)
     if not input_path.exists():
@@ -342,15 +275,15 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     total_chunks = len(chunks)
     print(f"[INFO] Loaded {total_chunks} chunks, duration: {duration:.2f}s")
 
-    # Create recorder
-    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, duration, output_wav)
+    # Track overall start time for synchronization
+    session_start_time = time.time()
+
+    # Create recorder. output.wav contains only actual Gemini response audio.
+    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, output_wav, session_start_time)
     recorder_task = asyncio.create_task(recorder.run())
 
     # Create client
     client = genai.Client(api_key=GEMINI_API_KEY)
-
-    # Track overall start time for synchronization
-    session_start_time = time.time()
 
     # Multi-session loop
     chunk_idx = 0
@@ -362,7 +295,7 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
             await asyncio.sleep(2.0)
         try:
             new_idx = await run_session(
-                client, session_id, chunks, chunk_idx, recorder, session_start_time
+                client, session_id, chunks, chunk_idx, recorder, session_start_time, max_response_sec
             )
         except Exception as e:
             print(f"[ERROR] Session {session_id}: {e}")
@@ -379,6 +312,22 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     # Finish recording
     recorder.stop()
     await recorder_task
+
+    response_start_sec = recorder.first_audio_wall_sec
+    timing = {
+        "input_duration_sec": duration,
+        "response_start_sec": response_start_sec,
+        "response_latency_sec": None if response_start_sec is None else response_start_sec - duration,
+        "response_duration_sec": recorder.response_duration_sec,
+        "response_end_sec": None if response_start_sec is None else response_start_sec + recorder.response_duration_sec,
+        "max_response_sec": max_response_sec,
+        "output_sample_rate": RECEIVE_SAMPLE_RATE,
+    }
+    timing_path = os.path.join(os.path.dirname(output_wav), "inference_timing.json")
+    with open(timing_path, "w", encoding="utf-8") as f:
+        import json
+        json.dump(timing, f, indent=2, ensure_ascii=False)
+    print(f"[INFO] Saved {timing_path}")
 
     # Cleanup
     if os.path.exists(wav16k_path):
@@ -407,9 +356,15 @@ async def batch_process(args):
                 try:
                     from pydub import AudioSegment
                     # Tách kênh Stereo: User (Tai trái), AI (Tai phải)
+                    import json
                     sound_in = AudioSegment.from_wav(f).pan(-1.0)
                     sound_out = AudioSegment.from_wav(out_wav).pan(1.0)
-                    sound_in.overlay(sound_out).export(combined_wav, format="wav")
+                    timing_path = os.path.join(os.path.dirname(out_wav), "inference_timing.json")
+                    position_ms = 0
+                    if os.path.exists(timing_path):
+                        with open(timing_path, "r", encoding="utf-8") as tf:
+                            position_ms = int((json.load(tf).get("response_start_sec") or 0) * 1000)
+                    sound_in.overlay(sound_out, position=position_ms).export(combined_wav, format="wav")
                     print(f"[INFO] Saved {combined_wav}")
                 except Exception as e:
                     pass
@@ -417,14 +372,20 @@ async def batch_process(args):
             continue
 
         try:
-            if await process_single_file(f, out_wav, args.overwrite):
+            if await process_single_file(f, out_wav, args.overwrite, args.max_response_sec):
                 try:
                     from pydub import AudioSegment
                     # Trộn (mix) audio input và output lại với nhau theo cùng một timeline
                     # Tách kênh Stereo: User (Tai trái), AI (Tai phải) để không bị loạn âm thanh
+                    import json
                     sound_in = AudioSegment.from_wav(f).pan(-1.0)
                     sound_out = AudioSegment.from_wav(out_wav).pan(1.0)
-                    sound_in.overlay(sound_out).export(combined_wav, format="wav")
+                    timing_path = os.path.join(os.path.dirname(out_wav), "inference_timing.json")
+                    position_ms = 0
+                    if os.path.exists(timing_path):
+                        with open(timing_path, "r", encoding="utf-8") as tf:
+                            position_ms = int((json.load(tf).get("response_start_sec") or 0) * 1000)
+                    sound_in.overlay(sound_out, position=position_ms).export(combined_wav, format="wav")
                     print(f"[INFO] Saved {combined_wav}")
                 except Exception as e:
                     print(f"[ERROR] Failed to mix combined audio: {e}")
@@ -441,4 +402,5 @@ if __name__ == "__main__":
     parser.add_argument("--task", default=None)
     parser.add_argument("--prefix", default="")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--max-response-sec", type=float, default=30.0)
     asyncio.run(batch_process(parser.parse_args()))
