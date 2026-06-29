@@ -12,6 +12,23 @@ MODEL_NAME = ""
 ASR_MODEL_ID = "vinai/PhoWhisper-medium"
 
 
+def disable_safetensors_auto_conversion():
+    """
+    Transformers can start a background safetensors conversion check that calls
+    the Hugging Face Discussions API. PhoWhisper has Discussions disabled, so
+    that thread raises 403 even though the PyTorch weights are usable.
+    """
+    try:
+        import transformers.safetensors_conversion as safetensors_conversion
+    except Exception:
+        return
+
+    def _skip_auto_conversion(*args, **kwargs):
+        return None
+
+    safetensors_conversion.auto_conversion = _skip_auto_conversion
+
+
 def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
     # Collect all matching audio files under the root directory
     audio_paths = sorted(glob(f"{data_path}/*/{MODEL_NAME}{audio_name}"))
@@ -27,6 +44,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
 
     dtype = torch.float16 if "cuda" in device else torch.float32
     hf_token = os.getenv("HF_TOKEN") or None
+    disable_safetensors_auto_conversion()
 
     # Load explicitly from PyTorch weights. Letting pipeline resolve the model id
     # can trigger Transformers' background safetensors auto-conversion check,
@@ -36,7 +54,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
     processor = AutoProcessor.from_pretrained(ASR_MODEL_ID, token=hf_token)
     model = AutoModelForSpeechSeq2Seq.from_pretrained(
         ASR_MODEL_ID,
-        torch_dtype=dtype,
+        dtype=dtype,
         use_safetensors=False,
         token=hf_token,
     )
