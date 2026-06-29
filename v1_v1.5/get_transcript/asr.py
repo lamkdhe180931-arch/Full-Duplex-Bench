@@ -170,7 +170,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         import gc
         del prediction
         gc.collect()
-        if "cuda" in device:
+        if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
 
