@@ -40,20 +40,27 @@ Hãy chọn ra 1 kết quả chính xác nhất, tự nhiên nhất và KHÔNG b
 CHỈ trả về duy nhất số thứ tự của kết quả tốt nhất: 1, 2, hoặc 3. Không giải thích gì thêm."""
     user_msg = f"Kết quả 1: {t1}\nKết quả 2: {t2}\nKết quả 3: {t3}"
     
-    try:
-        time.sleep(2) # Rate limit protection
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=f"{system_msg}\n\n{user_msg}"
-        )
-        text = response.text.strip()
-        if "1" in text: return 1
-        if "2" in text: return 2
-        if "3" in text: return 3
-        return 1
-    except Exception as e:
-        print(f"[WARN] Gemini selection failed: {e}. Defaulting to 1.")
-        return 1
+    for attempt in range(2):
+        try:
+            time.sleep(2) # Rate limit protection
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=f"{system_msg}\n\n{user_msg}"
+            )
+            text = response.text.strip()
+            if "1" in text: return 1
+            if "2" in text: return 2
+            if "3" in text: return 3
+            return 1
+        except Exception as e:
+            err_str = str(e).lower()
+            if "429" in err_str or "quota" in err_str or "exhausted" in err_str:
+                print(f"[WARN] Gemini quota exceeded (429). Sleeping for 35s then retrying...")
+                time.sleep(35)
+                continue
+            print(f"[WARN] Gemini selection failed: {e}. Defaulting to 1.")
+            return 1
+    return 1
 
 def format_whisper_chunks(prediction, offset):
     chunks = []
@@ -179,7 +186,20 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav", mod
                 # Thread 1 (GPU 0): Chạy PhoWhisper, xong chạy tiếp Chunkformer
                 # Thread 2 (GPU 1): Chạy Whisper-v3
                 def run_gpu0():
-                    return run_phowhisper(tmp.name), run_chunkformer(tmp.name)
+                    import gc
+                    import torch
+                    
+                    # Chạy PhoWhisper và dọn rác ngay lập tức
+                    out_pho = run_phowhisper(tmp.name)
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    
+                    # Chạy Chunkformer và dọn rác
+                    out_chunk = run_chunkformer(tmp.name)
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    
+                    return out_pho, out_chunk
                     
                 with ThreadPoolExecutor(max_workers=2) as executor:
                     fut_gpu0 = executor.submit(run_gpu0)
