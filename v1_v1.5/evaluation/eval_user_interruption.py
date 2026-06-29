@@ -196,9 +196,9 @@ def eval_user_interruption(root_dir, client):
     else:
         status_lat = "kém (chậm)"
 
-    print(f"Average rating: {avg_rating}: {status_rating} (0-5 \"càng lớn càng tốt\")")
-    print(f"Average take turn: {avg_tor}: {status_tt} (0-1 \"càng lớn càng tốt\")")
-    print(f"Average latency: {avg_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là lảm nhảm ý cũ\")")
+    print(f"Average rating (điểm chất lượng xử lý): {avg_rating}: {status_rating} (0-5 \"càng lớn càng tốt\")")
+    print(f"Average take turn (tỉ lệ phản hồi): {avg_tor}: {status_tt} (0-1 \"càng lớn càng tốt\")")
+    print(f"Average latency (độ trễ ngắt lời): {avg_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là lảm nhảm ý cũ\")")
     print("---------------------------------------------------")
     
     return {

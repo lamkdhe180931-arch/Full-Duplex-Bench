@@ -66,7 +66,7 @@ def eval_pause_handling(data_dir):
     print("---------------------------------------------------")
     print("[Result]")
     status = "tốt" if average_take_turn < 0.3 else "xấu"
-    print(f"Average take turn: {average_take_turn}: {status} (0-1 \"càng nhỏ càng tốt\")")
+    print(f"Average take turn (tỉ lệ cướp lời): {average_take_turn}: {status} (0-1 \"càng nhỏ càng tốt\")")
     print("---------------------------------------------------")
     
     return {"Average take turn": average_take_turn}
