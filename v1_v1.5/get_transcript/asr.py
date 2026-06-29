@@ -5,10 +5,11 @@ from glob import glob
 import torch
 import soundfile as sf
 import numpy as np
-from transformers import pipeline
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from tqdm import tqdm
 
 MODEL_NAME = ""
+ASR_MODEL_ID = "vinai/PhoWhisper-medium"
 
 
 def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
@@ -24,13 +25,29 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         # Dùng GPU số 2 (cuda:1) nếu có 2 GPU để tránh tranh chấp bộ nhớ với GPU số 1 (cuda:0)
         device = "cuda:1" if torch.cuda.device_count() > 1 else "cuda:0"
 
+    dtype = torch.float16 if "cuda" in device else torch.float32
+    hf_token = os.getenv("HF_TOKEN") or None
+
+    # Load explicitly from PyTorch weights. Letting pipeline resolve the model id
+    # can trigger Transformers' background safetensors auto-conversion check,
+    # which calls the Hugging Face Discussions API. PhoWhisper has Discussions
+    # disabled, so that background thread raises a noisy 403 and can stall
+    # notebook runs.
+    processor = AutoProcessor.from_pretrained(ASR_MODEL_ID, token=hf_token)
+    model = AutoModelForSpeechSeq2Seq.from_pretrained(
+        ASR_MODEL_ID,
+        torch_dtype=dtype,
+        use_safetensors=False,
+        token=hf_token,
+    )
+
     pipe = pipeline(
         "automatic-speech-recognition",
-        model="vinai/PhoWhisper-medium",
+        model=model,
+        tokenizer=processor.tokenizer,
+        feature_extractor=processor.feature_extractor,
         chunk_length_s=30,
-        dtype=torch.float16 if "cuda" in device else torch.float32,
-        model_kwargs={"use_safetensors": False},
-        token=os.getenv("HF_TOKEN") or None,
+        dtype=dtype,
         device=device,
     )
 
