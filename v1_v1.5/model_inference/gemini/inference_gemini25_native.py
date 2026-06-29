@@ -406,7 +406,10 @@ async def batch_process(args):
             if not os.path.exists(combined_wav):
                 try:
                     from pydub import AudioSegment
-                    AudioSegment.from_wav(f).overlay(AudioSegment.from_wav(out_wav)).export(combined_wav, format="wav")
+                    # Tách kênh Stereo: User (Tai trái), AI (Tai phải)
+                    sound_in = AudioSegment.from_wav(f).pan(-1.0)
+                    sound_out = AudioSegment.from_wav(out_wav).pan(1.0)
+                    sound_in.overlay(sound_out).export(combined_wav, format="wav")
                     print(f"[INFO] Saved {combined_wav}")
                 except Exception as e:
                     pass
@@ -418,7 +421,10 @@ async def batch_process(args):
                 try:
                     from pydub import AudioSegment
                     # Trộn (mix) audio input và output lại với nhau theo cùng một timeline
-                    AudioSegment.from_wav(f).overlay(AudioSegment.from_wav(out_wav)).export(combined_wav, format="wav")
+                    # Tách kênh Stereo: User (Tai trái), AI (Tai phải) để không bị loạn âm thanh
+                    sound_in = AudioSegment.from_wav(f).pan(-1.0)
+                    sound_out = AudioSegment.from_wav(out_wav).pan(1.0)
+                    sound_in.overlay(sound_out).export(combined_wav, format="wav")
                     print(f"[INFO] Saved {combined_wav}")
                 except Exception as e:
                     print(f"[ERROR] Failed to mix combined audio: {e}")
