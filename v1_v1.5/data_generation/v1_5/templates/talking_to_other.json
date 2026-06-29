@@ -12,7 +12,7 @@
     "context_text": "",
     "current_turn_text": "Đọc cho tôi danh sách công việc cần làm ngày hôm nay.",
     "overlap_text": "Tắt hộ anh cái tivi đi con.",
-    "delay_sec": 4.0,
+    "delay_sec": 2.0,
     "description": "Đang nghe trợ lý đọc task thì bảo con tắt tivi."
   }
 ]

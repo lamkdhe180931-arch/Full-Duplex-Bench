@@ -6,21 +6,5 @@
     "interrupt": "Đợi đã, cho tôi đổi điểm đến thành Nha Trang nhé",
     "interrupt_delay_sec": 2.5,
     "description": "Người dùng ngắt lời Agent để đổi ý định giữa chừng."
-  },
-  {
-    "id": "interrupt_002",
-    "context": "Hôm nay thời tiết Hà Nội thế nào?",
-    "agent_context": "Theo dự báo thời tiết hôm nay, khu vực Hà Nội sẽ có mưa rào rải rác vào buổi chiều, nhiệt độ...",
-    "interrupt": "Thôi bỏ qua thời tiết đi, tìm cho tôi quán ăn ngon gần đây",
-    "interrupt_delay_sec": 3.0,
-    "description": "Người dùng ngắt lời để chuyển chủ đề hội thoại."
-  },
-  {
-    "id": "interrupt_003",
-    "context": "Kể cho tôi nghe về nguồn gốc của món phở.",
-    "agent_context": "Món phở bò là một nét đặc sắc ẩm thực truyền thống, nguyên liệu chủ yếu gồm có bánh phở, nước dùng...",
-    "interrupt": "Cảm ơn, tôi biết rồi",
-    "interrupt_delay_sec": 2.0,
-    "description": "Người dùng ngắt lời xã giao khi đã nhận đủ thông tin."
   }
 ]
