@@ -168,7 +168,7 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             return "N/A" if value is None else f"{value:.1%}"
         
         total_tests = ph_res.get("Total tests", 0) + stt_res.get("Total tests", 0) + ui_res.get("Total tests", 0)
-        good_tests = ph_res.get("Perfect tests (listen+respond)", ph_res.get("Perfect tests (TOR=0)", 0)) + stt_res.get("Semantic success tests", stt_res.get("Perfect tests (smooth)", 0)) + ui_res.get("Perfect tests (TOR=1 & lat>=0 & rating>=4)", 0)
+        good_tests = ph_res.get("Perfect tests (TOR=0)", 0) + stt_res.get("Perfect tests (smooth)", 0) + ui_res.get("Perfect tests (TOR=1 & lat>=0 & rating>=4)", 0)
         
         html_content = f"""<!DOCTYPE html>
 <html lang="vi">
