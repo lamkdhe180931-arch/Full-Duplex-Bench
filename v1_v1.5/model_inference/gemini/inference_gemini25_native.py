@@ -149,7 +149,10 @@ class SynchronizedRecorder:
                     wall_sec, pcm = await asyncio.wait_for(self.queue.get(), timeout=0.05)
                 except asyncio.TimeoutError:
                     continue
-                target_sample = int(round((wall_sec - self.first_audio_wall_sec) * self.out_sr))
+                
+                # Ghi thẳng từ mốc thời gian ban đầu của cuộc hội thoại (0s)
+                # wall_sec là thời gian trôi qua kể từ timeline_start_time
+                target_sample = int(round(wall_sec * self.out_sr))
                 silence_samples = target_sample - self.samples_written
                 if silence_samples > 0:
                     wf.writeframes(b"\x00\x00" * silence_samples)
@@ -322,9 +325,8 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     # Track setup time separately; timeline 0 starts when the first input chunk is sent.
     process_start_time = time.time()
 
-    # Record compact response first, then expand output.wav into a timeline-aligned agent stem.
-    raw_output_wav = str(Path(output_wav).with_name(f"{Path(output_wav).stem}.raw_response.wav"))
-    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, raw_output_wav)
+    # Record agent stem directly, starting from timeline 0
+    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, output_wav)
     recorder_task = asyncio.create_task(recorder.run())
 
     # Create client
@@ -359,13 +361,16 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     await recorder_task
 
     response_start_sec = recorder.first_audio_wall_sec
-    align_response_stem_to_timeline(
-        raw_output_wav,
-        output_wav,
-        response_start_sec=response_start_sec,
-        sample_rate=RECEIVE_SAMPLE_RATE,
-        min_duration_sec=duration,
-    )
+    # Ensure minimum duration matches input
+    min_frames = max(0, int(round(duration * RECEIVE_SAMPLE_RATE)))
+    trailing_silence = min_frames - recorder.samples_written
+    if trailing_silence > 0:
+        with wave.open(output_wav, "ab" if os.path.exists(output_wav) else "wb") as wf:
+            if not os.path.exists(output_wav):
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(RECEIVE_SAMPLE_RATE)
+            wf.writeframes(b"\x00\x00" * trailing_silence)
     output_duration_sec = max(duration, (response_start_sec or 0.0) + recorder.response_duration_sec)
     timing = {
         "input_duration_sec": duration,
@@ -395,8 +400,6 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     # Cleanup
     if os.path.exists(wav16k_path):
         os.remove(wav16k_path)
-    if os.path.exists(raw_output_wav):
-        os.remove(raw_output_wav)
 
     print(f"[INFO] Saved {output_wav}")
     return True

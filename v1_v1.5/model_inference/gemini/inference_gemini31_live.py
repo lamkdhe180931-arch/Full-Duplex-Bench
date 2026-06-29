@@ -178,7 +178,7 @@ async def process_single_file(input_wav: str, output_wav: str, config: dict, ove
     total_chunks = len(chunks)
     print(f"[INFO] Loaded {total_chunks} chunks, duration: {duration:.2f}s")
 
-    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, duration, output_wav)
+    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, output_wav)
     recorder_task = asyncio.create_task(recorder.run())
 
     client = make_client()
@@ -210,6 +210,17 @@ async def process_single_file(input_wav: str, output_wav: str, config: dict, ove
 
     recorder.stop()
     await recorder_task
+
+    # Ensure minimum duration matches input
+    min_frames = max(0, int(round(duration * RECEIVE_SAMPLE_RATE)))
+    trailing_silence = min_frames - recorder.samples_written
+    if trailing_silence > 0:
+        with wave.open(output_wav, "ab" if os.path.exists(output_wav) else "wb") as wf:
+            if not os.path.exists(output_wav):
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(RECEIVE_SAMPLE_RATE)
+            wf.writeframes(b"\x00\x00" * trailing_silence)
 
     if os.path.exists(wav16k_path):
         os.remove(wav16k_path)
