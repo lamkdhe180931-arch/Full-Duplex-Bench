@@ -8,6 +8,7 @@ import numpy as np
 import tempfile
 import gc
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -54,7 +55,7 @@ CHỈ trả về duy nhất số thứ tự của kết quả tốt nhất: 1, 2
         print(f"[WARN] Gemini selection failed: {e}. Defaulting to 1.")
         return 1
 
-def format_whisper_chunks(prediction, offset, interrupt_end_time):
+def format_whisper_chunks(prediction, offset):
     chunks = []
     text = ""
     for chunk in prediction.get("chunks", []):
@@ -63,13 +64,11 @@ def format_whisper_chunks(prediction, offset, interrupt_end_time):
             continue
         start_time = chunk["timestamp"][0] + offset
         end_time = chunk["timestamp"][1] + offset
-        if interrupt_end_time is not None and start_time < interrupt_end_time:
-            continue
         text += word + " "
         chunks.append({"text": word, "timestamp": [start_time, end_time]})
     return {"text": text.strip(), "chunks": chunks}
 
-def format_chunkformer_chunks(prediction, offset, interrupt_end_time):
+def format_chunkformer_chunks(prediction, offset):
     chunks = []
     text = ""
     raw_chunks = prediction if isinstance(prediction, list) else prediction.get("chunks", [])
@@ -81,8 +80,6 @@ def format_chunkformer_chunks(prediction, offset, interrupt_end_time):
             continue
         start_time = ts[0] + offset
         end_time = ts[1] + offset
-        if interrupt_end_time is not None and start_time < interrupt_end_time:
-            continue
         text += word + " "
         chunks.append({"text": word, "timestamp": [start_time, end_time]})
     return {"text": text.strip(), "chunks": chunks}
@@ -142,41 +139,8 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav", mod
         if waveform.ndim > 1:
             waveform = waveform.mean(axis=1)
 
-        offset = 0.0
-        timing_path = os.path.join(os.path.dirname(audio_path), "inference_timing.json")
-        output_timeline_aligned = False
-        if os.path.exists(timing_path):
-            with open(timing_path, "r", encoding="utf-8") as f:
-                timing = json.load(f)
-                output_timeline_aligned = bool(timing.get("output_timeline_aligned"))
-                if not output_timeline_aligned:
-                    offset = timing.get("response_start_sec") or 0.0
-
-        interrupt_end_time = None
-        if task == "user_interruption":
-            meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "interrupt.json")
-            if not os.path.exists(meta_path):
-                meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "metadata.json")
-            if os.path.exists(meta_path):
-                with open(meta_path, "r", encoding="utf-8") as f:
-                    meta_data = json.load(f)
-                if isinstance(meta_data, list):
-                    _, interrupt_end_time = meta_data[0]["timestamp"]
-                else:
-                    _, interrupt_end_time = meta_data["timestamps"]
-
-        if task == "user_interruption" and not os.path.exists(timing_path) and interrupt_end_time:
-            offset = interrupt_end_time
-            start_idx = int(interrupt_end_time * sr)
-            waveform = waveform[start_idx:]
-
-        non_zero_indices = np.where(np.abs(waveform) > 1e-4)[0]
-        if len(non_zero_indices) > 0:
-            last_active_idx = non_zero_indices[-1]
-            padding_samples = int(0.5 * sr)
-            end_idx = min(len(waveform), last_active_idx + padding_samples)
-            waveform = waveform[:end_idx]
-        else:
+        # Nếu file hoàn toàn im lặng thì bỏ qua
+        if len(waveform) == 0 or np.max(np.abs(waveform)) < 1e-6:
             result_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", json_name)
             os.makedirs(os.path.dirname(result_path), exist_ok=True)
             with open(result_path, "w") as f: json.dump({"text": "", "chunks": []}, f, indent=4)
@@ -184,28 +148,42 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav", mod
 
         tmp_name = None
         out1, out2, out3 = {"text": "", "chunks": []}, {"text": "", "chunks": []}, {"text": "", "chunks": []}
+
+        def run_phowhisper(wav_path):
+            pred = pipe_pho(wav_path, return_timestamps="word", generate_kwargs={"language": "vietnamese", "condition_on_prev_tokens": False})
+            return format_whisper_chunks(pred, 0)
+
+        def run_whisper_v3(wav_path):
+            pred = pipe_whisper(wav_path, return_timestamps="word", generate_kwargs={"language": "vietnamese"})
+            return format_whisper_chunks(pred, 0)
+
+        def run_chunkformer(wav_path):
+            if not model_chunk:
+                return {"text": "", "chunks": []}
+            try:
+                pred = model_chunk.endless_decode(audio_path=wav_path, chunk_size=64, left_context_size=128, right_context_size=128, total_batch_duration=14400, return_timestamps=True)
+                result = format_chunkformer_chunks(pred, 0)
+                if not result["text"] and isinstance(pred, str):
+                    result["text"] = pred
+                return result
+            except Exception as e:
+                print(f"[WARN] Chunkformer failed: {e}")
+                return {"text": "", "chunks": []}
+
         try:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_name = tmp.name
                 sf.write(tmp.name, waveform, sr)
-                
-                # Model 1: PhoWhisper
-                pred1 = pipe_pho(tmp.name, return_timestamps="word", generate_kwargs={"language": "vietnamese", "condition_on_prev_tokens": False})
-                out1 = format_whisper_chunks(pred1, offset, interrupt_end_time)
-                
-                # Model 2: Whisper-v3
-                pred2 = pipe_whisper(tmp.name, return_timestamps="word", generate_kwargs={"language": "vietnamese"})
-                out2 = format_whisper_chunks(pred2, offset, interrupt_end_time)
-                
-                # Model 3: Chunkformer
-                if model_chunk:
-                    try:
-                        pred3 = model_chunk.endless_decode(audio_path=tmp.name, chunk_size=64, left_context_size=128, right_context_size=128, total_batch_duration=14400, return_timestamps=True)
-                        out3 = format_chunkformer_chunks(pred3, offset, interrupt_end_time)
-                        if not out3["text"] and isinstance(pred3, str):
-                            out3["text"] = pred3
-                    except Exception as e:
-                        print(f"[WARN] Chunkformer failed for {tmp.name}: {e}")
+
+                # Chạy song song 3 model bằng ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    fut1 = executor.submit(run_phowhisper, tmp.name)
+                    fut2 = executor.submit(run_whisper_v3, tmp.name)
+                    fut3 = executor.submit(run_chunkformer, tmp.name)
+
+                    out1 = fut1.result()
+                    out2 = fut2.result()
+                    out3 = fut3.result()
 
         finally:
             if tmp_name and os.path.exists(tmp_name):

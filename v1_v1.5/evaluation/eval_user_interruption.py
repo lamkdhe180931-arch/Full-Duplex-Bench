@@ -101,20 +101,29 @@ def eval_user_interruption(root_dir, client):
             if is_v15:
                 in_interrupt_text = metadata["current_turn_text"]
                 in_before_interrupt_text = metadata["context_text"]
+                input_start_time = metadata["timestamps"][0]
                 input_end_time = metadata["timestamps"][1]
             else:
                 in_interrupt_text = metadata[0]["interrupt"]
                 in_before_interrupt_text = metadata[0]["context"]
+                input_start_time = metadata[0]["timestamp"][0]
                 input_end_time = metadata[0]["timestamp"][1]
                 
-            out_after_interrupt_text = out_after_interrupt["text"]
+            # Lấy toàn bộ chunks từ kết quả ASR (Không lọc, không cắt xén)
+            segments_cw = out_after_interrupt.get("chunks", [])
+
+            # Tạo text có kèm timestamp cho AI's response để LLM dễ đánh giá
+            # Ví dụ: "[0.5-0.8] một [0.8-1.2] hà [1.2-1.5] nội"
+            ai_timestamped_text = " ".join([
+                f"[{c['timestamp'][0]:.2f}-{c['timestamp'][1]:.2f}] {c['text']}" 
+                for c in segments_cw if c.get("timestamp") and c["timestamp"][0] is not None
+            ])
 
             # TOR and latency
             TOR = None
             latency = None
-            segments_cw = out_after_interrupt["chunks"]
 
-            # if no transcription from CrisperWhisper， means model does not take turn
+            # Tính toán trực tiếp toàn bộ theo thực tế
             if len(segments_cw) == 0:
                 TOR = 0
             else:
@@ -136,8 +145,10 @@ def eval_user_interruption(root_dir, client):
             if TOR == 1:
                 user_msg = f"""
                 - Contextual user turn: {in_before_interrupt_text}
-                - User interrupting turn: {in_interrupt_text}
-                - AI's response: {out_after_interrupt_text}
+                - User interrupting turn (occurred at [{input_start_time:.2f}-{input_end_time:.2f}]): {in_interrupt_text}
+                - AI's full response (with timestamps): {ai_timestamped_text}
+                
+                Please look at the timestamps to determine what the AI said AFTER the user's interruption finished at {input_end_time:.2f}s, and evaluate the quality of that specific response.
                 """
 
                 prediction = generate_gemini_rating(client, system_msg, user_msg)
