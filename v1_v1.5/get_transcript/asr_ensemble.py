@@ -87,32 +87,55 @@ def format_chunkformer_chunks(prediction, offset, interrupt_end_time):
         chunks.append({"text": word, "timestamp": [start_time, end_time]})
     return {"text": text.strip(), "chunks": chunks}
 
-def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
-    audio_paths = sorted(glob(f"{data_path}/*/{MODEL_NAME}{audio_name}"))
-    json_name = audio_name.rsplit(".", 1)[0] + ".json"
-    
-    gemini_client = init_gemini()
-
+def load_models():
+    """Load all 3 ASR models once. Returns a dict with the loaded pipelines/models."""
     print("Loading models into GPUs...")
     disable_safetensors_auto_conversion()
-    
-    print("Loading PhoWhisper-large -> cuda:0")
+
+    device0 = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device1 = "cuda:1" if torch.cuda.device_count() > 1 else device0
+
+    print(f"Loading PhoWhisper-large -> {device0}")
     pho_processor = AutoProcessor.from_pretrained("vinai/PhoWhisper-large")
     pho_model = AutoModelForSpeechSeq2Seq.from_pretrained("vinai/PhoWhisper-large", torch_dtype=torch.float16, use_safetensors=False)
-    pipe_pho = pipeline("automatic-speech-recognition", model=pho_model, tokenizer=pho_processor.tokenizer, feature_extractor=pho_processor.feature_extractor, chunk_length_s=30, torch_dtype=torch.float16, device="cuda:0" if torch.cuda.is_available() else "cpu")
+    pipe_pho = pipeline("automatic-speech-recognition", model=pho_model, tokenizer=pho_processor.tokenizer, feature_extractor=pho_processor.feature_extractor, chunk_length_s=30, torch_dtype=torch.float16, device=device0)
 
-    print("Loading openai/whisper-large-v3 -> cuda:1")
-    pipe_whisper = pipeline("automatic-speech-recognition", model="openai/whisper-large-v3", chunk_length_s=30, torch_dtype=torch.float16, device="cuda:1" if torch.cuda.device_count() > 1 else "cuda:0")
+    print(f"Loading openai/whisper-large-v3 -> {device1}")
+    pipe_whisper = pipeline("automatic-speech-recognition", model="openai/whisper-large-v3", chunk_length_s=30, torch_dtype=torch.float16, device=device1)
 
-    print("Loading khanhld/chunkformer-rnnt-large-vie -> cuda:0")
+    print(f"Loading khanhld/chunkformer-rnnt-large-vie -> {device0}")
     model_chunk = None
     try:
         from chunkformer import ChunkFormerModel
         model_chunk = ChunkFormerModel.from_pretrained("khanhld/chunkformer-rnnt-large-vie")
         if torch.cuda.is_available():
-            model_chunk = model_chunk.to("cuda:0")
+            model_chunk = model_chunk.to(device0)
     except ImportError:
         print("[WARN] chunkformer not installed. Skipping model 3.")
+
+    gemini_client = init_gemini()
+
+    print("✅ All models loaded.")
+    return {
+        "pipe_pho": pipe_pho,
+        "pipe_whisper": pipe_whisper,
+        "model_chunk": model_chunk,
+        "gemini_client": gemini_client,
+    }
+
+
+def get_time_aligned_transcription(data_path, task, audio_name="output.wav", models=None):
+    """Transcribe audio files using pre-loaded models. If models is None, loads them (slow)."""
+    if models is None:
+        models = load_models()
+
+    pipe_pho = models["pipe_pho"]
+    pipe_whisper = models["pipe_whisper"]
+    model_chunk = models["model_chunk"]
+    gemini_client = models["gemini_client"]
+
+    audio_paths = sorted(glob(f"{data_path}/*/{MODEL_NAME}{audio_name}"))
+    json_name = audio_name.rsplit(".", 1)[0] + ".json"
 
     for audio_path in tqdm(audio_paths, desc="Ensemble ASR"):
         waveform, sr = sf.read(audio_path)
@@ -180,7 +203,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
                         pred3 = model_chunk.endless_decode(audio_path=tmp.name, chunk_size=64, left_context_size=128, right_context_size=128, total_batch_duration=14400, return_timestamps=True)
                         out3 = format_chunkformer_chunks(pred3, offset, interrupt_end_time)
                         if not out3["text"] and isinstance(pred3, str):
-                            out3["text"] = pred3 # fallback if return_timestamps failed
+                            out3["text"] = pred3
                     except Exception as e:
                         print(f"[WARN] Chunkformer failed for {tmp.name}: {e}")
 
@@ -198,7 +221,11 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         with open(result_path, "w", encoding="utf-8") as f:
             json.dump(final_out, f, indent=4, ensure_ascii=False)
 
-def transcribe_v1_benchmark(root_dir, audio_name="output.wav"):
+def transcribe_v1_benchmark(root_dir, audio_name="output.wav", models=None):
+    """Transcribe all v1 tasks. Loads models once if not provided."""
+    if models is None:
+        models = load_models()
+
     tasks = [
         ("synthetic_pause_handling", "default"),
         ("candor_turn_taking", "default"),
@@ -208,7 +235,7 @@ def transcribe_v1_benchmark(root_dir, audio_name="output.wav"):
         task_dir = os.path.join(root_dir, task_name)
         if not os.path.isdir(task_dir): continue
         print(f"ASR {audio_name} -> {task_name}")
-        get_time_aligned_transcription(task_dir, task_mode, audio_name)
+        get_time_aligned_transcription(task_dir, task_mode, audio_name, models=models)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -217,5 +244,7 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str, default="default")
     parser.add_argument("--audio_name", type=str, default="output.wav")
     args = parser.parse_args()
-    if args.v1_benchmark_root: transcribe_v1_benchmark(args.v1_benchmark_root, args.audio_name)
-    else: get_time_aligned_transcription(args.root_dir, args.task, args.audio_name)
+    loaded_models = load_models()
+    if args.v1_benchmark_root: transcribe_v1_benchmark(args.v1_benchmark_root, args.audio_name, models=loaded_models)
+    else: get_time_aligned_transcription(args.root_dir, args.task, args.audio_name, models=loaded_models)
+
