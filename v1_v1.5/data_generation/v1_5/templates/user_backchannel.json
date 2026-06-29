@@ -6,13 +6,5 @@
     "overlap_text": "",
     "delay_sec": 3.5,
     "description": "Tiếng đế lời đồng ý ngắn trong lúc Agent đang giải thích."
-  },
-  {
-    "id": "user_backchannel_002",
-    "context_text": "Hãy giải thích cho tôi nguyên lý hoạt động của động cơ điện.",
-    "current_turn_text": "À, ra vậy",
-    "overlap_text": "",
-    "delay_sec": 4.0,
-    "description": "Tiếng tán thưởng tỏ ý đã hiểu khi Agent đang giải thích giữa chừng."
   }
 ]

@@ -10,17 +10,5 @@
     "background_duration_sec": 5.0,
     "target_snr_db": 8,
     "description": "Nhiễu giọng nói của người khác trên tivi ở nền (nhiễu âm lượng nhỏ)."
-  },
-  {
-    "id": "bg_speech_002",
-    "context_text": "",
-    "current_turn_text": "Đặt cho tôi một lịch nhắc họp lúc chín giờ sáng mai nhé.",
-    "overlap_text": "Mẹ ơi hôm nay nhà mình ăn món gì thế ạ?",
-    "delay_sec": 2.0,
-    "background_provider": "elevenlabs_sfx",
-    "background_prompt": "Vietnamese child speaking softly in a nearby room with household ambience, indistinct background speech, natural distance from microphone",
-    "background_duration_sec": 4.5,
-    "target_snr_db": 10,
-    "description": "Tiếng trẻ con nói chuyện ở nền xung quanh khi người dùng đang ra lệnh."
   }
 ]

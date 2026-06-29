@@ -6,13 +6,5 @@
     "overlap_text": "",
     "delay_sec": 2.5,
     "description": "Người dùng ngắt lời bổ sung tiêu chí tìm kiếm."
-  },
-  {
-    "id": "user_interrupt_002",
-    "context_text": "Bật nhạc trẻ sôi động giúp tôi với.",
-    "current_turn_text": "Thôi thôi nhạc nhẹ thôi, tôi muốn tập trung làm việc.",
-    "overlap_text": "",
-    "delay_sec": 3.0,
-    "description": "Người dùng ngắt lời đổi ý định phát nhạc."
   }
 ]
