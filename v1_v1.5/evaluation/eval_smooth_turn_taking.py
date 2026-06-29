@@ -102,9 +102,12 @@ def eval_smooth_turn_taking(data_dir):
     print(f"Average latency (độ trễ phản xạ): {average_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là cướp lời\")")
     print("---------------------------------------------------")
     
+    good_tests = sum(1 for t, l in zip(take_turn_list, latency_list) if t == 1 and 0 <= l <= 1.5)
     return {
         "Average take turn": average_take_turn,
-        "Average latency": average_latency
+        "Average latency": average_latency,
+        "Total tests": len(take_turn_list),
+        "Good tests (TOR=1 & 0<=lat<=1.5)": good_tests
     }
 
 

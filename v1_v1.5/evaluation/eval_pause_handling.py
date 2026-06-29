@@ -69,7 +69,11 @@ def eval_pause_handling(data_dir):
     print(f"Average take turn (tỉ lệ cướp lời): {average_take_turn}: {status} (0-1 \"càng nhỏ càng tốt\")")
     print("---------------------------------------------------")
     
-    return {"Average take turn": average_take_turn}
+    return {
+        "Average take turn": average_take_turn,
+        "Total tests": len(take_turn_list),
+        "Good tests (TOR=0)": take_turn_list.count(0)
+    }
 
 
 if __name__ == "__main__":

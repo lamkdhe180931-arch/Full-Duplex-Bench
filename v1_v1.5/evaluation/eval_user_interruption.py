@@ -201,10 +201,13 @@ def eval_user_interruption(root_dir, client):
     print(f"Average latency (độ trễ ngắt lời): {avg_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là lảm nhảm ý cũ\")")
     print("---------------------------------------------------")
     
+    good_tests = sum(1 for t, l, r in zip(take_turn_list, latency_list, score_list) if t == 1 and l >= 0 and r >= 3.0)
     return {
         "Average rating": avg_rating,
         "Average take turn": avg_tor,
-        "Average latency": avg_latency
+        "Average latency": avg_latency,
+        "Total tests": len(score_list),
+        "Good tests (TOR=1 & lat>=0 & rating>=3)": good_tests
     }
 
 
