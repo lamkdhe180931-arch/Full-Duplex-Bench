@@ -175,15 +175,18 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav", mod
                 tmp_name = tmp.name
                 sf.write(tmp.name, waveform, sr)
 
-                # Chạy song song 3 model bằng ThreadPoolExecutor
-                with ThreadPoolExecutor(max_workers=3) as executor:
-                    fut1 = executor.submit(run_phowhisper, tmp.name)
-                    fut2 = executor.submit(run_whisper_v3, tmp.name)
-                    fut3 = executor.submit(run_chunkformer, tmp.name)
+                # Chạy song song trên 2 GPU:
+                # Thread 1 (GPU 0): Chạy PhoWhisper, xong chạy tiếp Chunkformer
+                # Thread 2 (GPU 1): Chạy Whisper-v3
+                def run_gpu0():
+                    return run_phowhisper(tmp.name), run_chunkformer(tmp.name)
+                    
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    fut_gpu0 = executor.submit(run_gpu0)
+                    fut_gpu1 = executor.submit(run_whisper_v3, tmp.name)
 
-                    out1 = fut1.result()
-                    out2 = fut2.result()
-                    out3 = fut3.result()
+                    out1, out3 = fut_gpu0.result()
+                    out2 = fut_gpu1.result()
 
         finally:
             if tmp_name and os.path.exists(tmp_name):
