@@ -152,11 +152,11 @@ def resample_to_16k(input_path: Path) -> Tuple[Path, float]:
     data, sr = sf.read(input_path, always_2d=False)
     if data.ndim == 2:
         data = data.mean(axis=1)
-    duration = len(data) / sr
 
     if sr != SEND_SAMPLE_RATE:
         g = math.gcd(int(sr), SEND_SAMPLE_RATE)
         data = ss.resample_poly(data, SEND_SAMPLE_RATE // g, int(sr) // g)
+    duration = len(data) / SEND_SAMPLE_RATE
 
     # REMOVED: Max Normalization
     # This was amplifying background noise and triggering VAD!
@@ -170,20 +170,21 @@ def resample_to_16k(input_path: Path) -> Tuple[Path, float]:
     return out_path, duration
 
 
-def load_audio_chunks(wav16k_path: Path) -> List[bytes]:
+def load_audio_chunks(wav16k_path: Path) -> List[Tuple[bytes, float]]:
     """Split into chunks."""
     data, _ = sf.read(wav16k_path, dtype="int16")
-    pad = (-len(data)) % CHUNK_SIZE
-    if pad:
-        data = np.pad(data, (0, pad))
 
-    return [data[i:i+CHUNK_SIZE].tobytes() for i in range(0, len(data), CHUNK_SIZE)]
+    chunks = []
+    for i in range(0, len(data), CHUNK_SIZE):
+        chunk = data[i:i+CHUNK_SIZE]
+        chunks.append((chunk.tobytes(), len(chunk) / SEND_SAMPLE_RATE))
+    return chunks
 
 
 async def run_session(
     client: genai.Client,
     session_id: int,
-    chunks: List[bytes],
+    chunks: List[Tuple[bytes, float]],
     start_idx: int,
     recorder: SynchronizedRecorder,
     session_start_time: float,
@@ -192,8 +193,12 @@ async def run_session(
     """
     Run one session.
     """
-    chunk_duration = CHUNK_SIZE / SEND_SAMPLE_RATE
-    session_time_offset = start_idx * chunk_duration
+    chunk_offsets = []
+    elapsed = 0.0
+    for _chunk, duration in chunks:
+        chunk_offsets.append(elapsed)
+        elapsed += duration
+    session_time_offset = chunk_offsets[start_idx] if start_idx < len(chunk_offsets) else elapsed
     
     print(f"[DEBUG][Session {session_id}] Start from chunk {start_idx} (t={session_time_offset:.2f}s)")
     
@@ -209,10 +214,10 @@ async def run_session(
         async def sender():
             nonlocal idx, session_done
             while idx < total and not session_done:
-                chunk = chunks[idx]
+                chunk, chunk_duration = chunks[idx]
                 
                 # Update recorder timeline alignment
-                recorder.current_sender_time = idx * chunk_duration
+                recorder.current_sender_time = chunk_offsets[idx]
                 
                 # REMOVED: Client-side Noise Gate
                 
@@ -296,6 +301,7 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     wav16k_path, duration = resample_to_16k(input_path)
     chunks = load_audio_chunks(wav16k_path)
     total_chunks = len(chunks)
+    sent_audio_duration = sum(chunk_duration for _chunk, chunk_duration in chunks)
     print(f"[INFO] Loaded {total_chunks} chunks, duration: {duration:.2f}s")
 
     # Track overall start time for synchronization
@@ -339,10 +345,16 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     response_start_sec = recorder.first_audio_wall_sec
     timing = {
         "input_duration_sec": duration,
+        "sent_audio_duration_sec": sent_audio_duration,
+        "chunk_count": total_chunks,
+        "chunk_size_samples": CHUNK_SIZE,
+        "send_sample_rate": SEND_SAMPLE_RATE,
         "response_start_sec": response_start_sec,
+        "response_last_audio_sec": recorder.last_audio_wall_sec,
         "response_latency_sec": None if response_start_sec is None else response_start_sec - duration,
         "response_duration_sec": recorder.response_duration_sec,
         "response_end_sec": None if response_start_sec is None else response_start_sec + recorder.response_duration_sec,
+        "response_wall_span_sec": None if response_start_sec is None or recorder.last_audio_wall_sec is None else recorder.last_audio_wall_sec - response_start_sec,
         "max_response_sec": max_response_sec,
         "output_sample_rate": RECEIVE_SAMPLE_RATE,
     }
