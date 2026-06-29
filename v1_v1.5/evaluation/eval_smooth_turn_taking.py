@@ -90,8 +90,16 @@ def eval_smooth_turn_taking(data_dir):
 
     print("---------------------------------------------------")
     print("[Result]")
-    print("Average take turn: ", average_take_turn)
-    print("Average latency: ", average_latency)
+    status_tt = "tốt" if average_take_turn > 0.7 else "xấu"
+    if average_latency < 0:
+        status_lat = "xấu (cướp lời)"
+    elif average_latency <= 1.5:
+        status_lat = "tốt"
+    else:
+        status_lat = "kém (chậm)"
+        
+    print(f"Average take turn: {average_take_turn}: {status_tt} (0-1 \"càng lớn càng tốt\")")
+    print(f"Average latency: {average_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là cướp lời\")")
     print("---------------------------------------------------")
     
     return {

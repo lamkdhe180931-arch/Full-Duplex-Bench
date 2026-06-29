@@ -157,7 +157,12 @@ def eval_user_interruption(root_dir, client):
                 print(prediction)
                 parsed_output = parse_output(prediction + "\n")
 
-                print(parsed_output)
+                # In chi tiết thay vì in dict thô
+                print("\n--- Nhận xét của AI ---")
+                print(parsed_output.get("analysis", "Không có phân tích."))
+                print(f"Rating: {parsed_output.get('rating', 'N/A')}")
+                print("-----------------------")
+
                 if "rating" not in parsed_output:
                     if attempt == 2:
                         print(f"Could not parse rating for {file_dir}; skipping rating.")
@@ -182,9 +187,18 @@ def eval_user_interruption(root_dir, client):
 
     print("---------------------------------------------------")
     print("[Result]")
-    print("Average rating: ", avg_rating)
-    print("Average take turn: ", avg_tor)
-    print("Average latency: ", avg_latency)
+    status_rating = "tốt" if avg_rating >= 4.0 else ("khá" if avg_rating >= 3.0 else "xấu")
+    status_tt = "tốt" if avg_tor > 0.7 else "xấu"
+    if avg_latency < 0:
+        status_lat = "xấu (lảm nhảm ý cũ)"
+    elif avg_latency <= 2.0:
+        status_lat = "tốt"
+    else:
+        status_lat = "kém (chậm)"
+
+    print(f"Average rating: {avg_rating}: {status_rating} (0-5 \"càng lớn càng tốt\")")
+    print(f"Average take turn: {avg_tor}: {status_tt} (0-1 \"càng lớn càng tốt\")")
+    print(f"Average latency: {avg_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là lảm nhảm ý cũ\")")
     print("---------------------------------------------------")
     
     return {

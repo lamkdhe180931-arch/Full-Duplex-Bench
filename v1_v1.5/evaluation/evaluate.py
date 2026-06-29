@@ -90,7 +90,12 @@ Dưới đây là điểm benchmark âm thanh song công (Full-Duplex V1) của 
 3. User Interruption (Xử lý khi bị ngắt lời):
 {json.dumps(ui_res, indent=2)}
 
-Dựa vào các chỉ số kỹ thuật trên (như độ trễ latency âm hay dương, take turn rate cao hay thấp, rating chất lượng xử lý ngắt lời ra sao), hãy viết 1 ĐOẠN ĐÁNH GIÁ (khoảng 3-5 câu) BẰNG TIẾNG VIỆT thật ngắn gọn, dễ hiểu tóm tắt lại "Agent này hoạt động tốt hay kém ở điểm nào, phản xạ ra sao, có bị dính lỗi cướp lời không, trả lời khi bị ngắt lời có mượt không?". Tuyệt đối không cần in lại các con số, chỉ nói về CHẤT LƯỢNG tương ứng với các con số đó.
+Dựa vào các chỉ số kỹ thuật trên (như độ trễ latency âm hay dương, take turn rate cao hay thấp, rating chất lượng xử lý ngắt lời ra sao), hãy ĐÁNH GIÁ CHẤT LƯỢNG của Agent này bằng Tiếng Việt dưới dạng VÀI GẠCH ĐẦU DÒNG NGẮN GỌN.
+Chỉ tập trung vào kết luận nhanh: 
+- Phản xạ nhanh/chậm ra sao? 
+- Có bị lỗi cướp lời không? 
+- Xử lý ngắt lời có mượt và đúng ngữ cảnh không?
+Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN NGẮN GỌN.
 """
         print("Đang gửi số liệu cho Gemini để viết tóm tắt đánh giá...")
         try:
