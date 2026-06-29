@@ -214,6 +214,75 @@ Hiện tại phần semantic rating có thể dùng Gemini với `GEMINI_API_KEY
 5 = phản hồi rất đúng với ý interrupt
 ```
 
+### 4.4. Logic evaluator gốc của repo fork
+
+Repo gốc `DanielLin94144/Full-Duplex-Bench` đánh giá v1 bằng các script trong:
+
+```text
+v1_v1.5/evaluation/
+```
+
+Các chỉ số gốc được thiết kế khá gọn, chủ yếu dựa vào `output.json` do ASR tạo ra:
+
+| Bài toán | Chỉ số gốc | Cách tính chính | Ý nghĩa |
+| --- | --- | --- | --- |
+| Pause Handling | `Average take turn` | Nếu `output.json` rỗng hoặc output rất ngắn thì `TOR=0`; nếu output đủ dài thì `TOR=1` | Đo xem model có cướp lượt trong tình huống pause hay không |
+| Smooth Turn-Taking | `Average take turn`, `Average latency` | `latency = first_output_timestamp - turn_end` | Đo model có phản hồi sau khi user kết thúc lượt không và phản hồi nhanh hay chậm |
+| User Interruption | `Average rating`, `Average take turn`, `Average latency` | LLM chấm response có liên quan interrupt không; latency lấy từ first output trừ `interrupt_end` | Đo model có trả lời sau interrupt và câu trả lời có bám theo câu interrupt không |
+| Backchannel | `JSD`, `TOR`, `Frequency` | Dùng Silero VAD tìm các đoạn speech ngắn rồi so phân phối với ground-truth | Đo tần suất và phân phối backchannel có giống dữ liệu tham chiếu không |
+
+Điểm mạnh của evaluator gốc:
+
+- Đơn giản, dễ chạy, dễ tổng hợp số liệu.
+- Có thể dùng chung cho nhiều model vì chỉ cần `output.wav` và `output.json`.
+- `User Interruption` có thêm LLM rating nên đánh giá được phần liên quan nội dung.
+- `Backchannel` đã dùng VAD, phù hợp hơn với việc phát hiện đoạn nói ngắn.
+
+Điểm yếu của evaluator gốc:
+
+- Phần lớn metric phụ thuộc vào timestamp trong `output.json`, trong khi timestamp ASR có thể lệch khi audio có silence đầu, hallucination, hoặc bị trim im lặng.
+- `Pause Handling` không kiểm tra model nói ở đúng giai đoạn nào của input. Nó chỉ biết output dài hay ngắn, nên chưa phân biệt được model nói trong pause, nói khi user đang nói tiếp, hay nói sau khi user kết thúc.
+- `Smooth Turn-Taking` đo latency bằng first ASR timestamp, nên có thể báo âm hoặc lệch so với cảm nhận khi nghe `combined.wav`.
+- `User Interruption` chưa đo việc model có ngừng nói nhanh khi user interrupt hay không. Nó chủ yếu đo response sau interrupt, chưa đo stop behavior.
+- Một số lỗi cướp lời có thể bị che mất nếu ASR/timestamp bị lọc hoặc latency âm bị ép về 0.
+
+### 4.5. Hướng cải tiến evaluator hiện tại
+
+Phương án cải tiến là tách rõ ba nguồn dữ liệu:
+
+```text
+VAD / inference_timing.json  -> đo hành vi thời gian: nói lúc nào, dừng lúc nào
+output.json                  -> lấy nội dung agent đã nói
+LLM judge                    -> chấm semantic: có đúng ý user không
+```
+
+Mỗi bài toán vẫn cần các chỉ số chung:
+
+| Chỉ số chung | Cách hiểu | Nguồn đo phù hợp |
+| --- | --- | --- |
+| `response_rate` | Agent có phản hồi khi cần không | VAD trên `output.wav` hoặc `inference_timing.json` |
+| `valid_response_latency` | Agent phản hồi sau mốc user hoàn tất bao lâu | VAD / `response_start_sec`, không ưu tiên ASR timestamp |
+| `semantic_score` | Nội dung phản hồi có đúng ý user không | `output.json` + LLM judge |
+
+Ngoài chỉ số chung, mỗi bài toán cần chỉ số riêng đúng bản chất:
+
+| Bài toán | Hành vi cần đo | Chỉ số riêng đề xuất | Vì sao phù hợp hơn |
+| --- | --- | --- | --- |
+| Pause Handling | Agent phải tiếp tục lắng nghe khi user ngập ngừng | `pause_barge_in_rate`, `continuation_barge_in_rate`, `listen_through_success`, `final_response_latency` | Đo đúng việc agent có im lặng trong pause và chỉ trả lời sau khi user nói xong hay không |
+| Smooth Turn-Taking | Agent phải đợi user kết thúc rồi trả lời nhanh | `barge_in_rate`, `smooth_turn_success`, `turn_latency` | Phân biệt rõ trả lời đúng lượt với cướp lời; latency lấy theo timeline audio thật |
+| User Interruption | Agent phải dừng nhanh, nghe interrupt mới, và đổi nội dung trả lời | `stop_latency`, `interrupt_overlap_duration`, `recovery_latency`, `new_intent_score`, `old_context_contamination` | Đo được cả ba bước: dừng nói, lắng nghe, phản hồi theo ý mới |
+| Backchannel | Agent chỉ nên phản hồi ngắn, không chiếm lượt | `backchannel_brevity`, `takeover_rate`, giữ thêm `JSD` và `Frequency` | Giữ ưu điểm của repo gốc nhưng bổ sung kiểm tra không biến backchannel thành một lượt trả lời dài |
+
+Logic mới phù hợp hơn với benchmark full-duplex vì nó không chỉ hỏi "agent có nói không", mà còn hỏi:
+
+- Agent nói có đúng thời điểm không?
+- Agent có biết tiếp tục lắng nghe khi user chưa nói xong không?
+- Agent có dừng nhanh khi bị interrupt không?
+- Agent có chuyển sang ý mới hay vẫn bám context cũ?
+- Nội dung trả lời có đúng với câu hỏi mới nhất không?
+
+Tóm lại, evaluator gốc là một baseline tốt để chạy nhanh, nhưng evaluator cải tiến cần dùng audio timeline làm nguồn chính cho các metric thời gian. `output.json` nên dùng chủ yếu cho text và semantic rating, không nên là nguồn duy nhất để kết luận latency hoặc cướp lời.
+
 ## 5. Ý nghĩa từng bài test
 
 ### 5.1. Pause Handling
@@ -305,4 +374,3 @@ Benchmark hiện tại đã/ chưa mô phỏng tốt tình huống full-duplex v
 Điểm yếu hiện tại là ...
 Ưu tiên chỉnh tiếp theo là ...
 ```
-

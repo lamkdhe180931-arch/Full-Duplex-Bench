@@ -2,8 +2,18 @@ import json
 import re
 import os
 import argparse
-from tqdm import tqdm
+try:
+    from tqdm import tqdm
+except ImportError:
+    def tqdm(iterable, **kwargs):
+        return iterable
 import time
+
+from v1_timeline_metrics import (
+    average,
+    evaluate_user_interruption_sample,
+    iter_sample_dirs,
+)
 
 turn_duration_threshold = 1
 turn_num_words_threshold = 3
@@ -62,102 +72,35 @@ def eval_user_interruption(root_dir, client):
    I would rate the AI's response as [Điểm số].
    """
 
-    file_dirs = []
-    for root, dirs, files in os.walk(root_dir):
-        for dir in dirs:
-            file_dirs.append(os.path.join(root, dir))
+    rows = []
+    for file_dir in tqdm(list(iter_sample_dirs(root_dir))):
+        print(f"Processing {file_dir} ...")
 
-    score_list = []
-    take_turn_list = []
-    latency_list = []
+        out_after_interrupt_path = os.path.join(file_dir, "output.json")
+        if not os.path.exists(out_after_interrupt_path):
+            raise FileNotFoundError("Required file 'output.json' not found.")
 
-    for file_dir in tqdm(sorted(file_dirs)):
-        # read the json file
-        for attempt in range(3):
-            print(f"Processing {file_dir} ...")
+        result = evaluate_user_interruption_sample(file_dir)
+        result["semantic_score"] = None
 
-            out_after_interrupt_path = os.path.join(file_dir, "output.json")
-            # check must have output.json, if not, raise error
-            if not os.path.exists(out_after_interrupt_path):
-                raise FileNotFoundError("Required file 'output.json' not found.")
+        if result["post_interrupt_response_rate"]:
+            user_msg = f"""
+            - Câu mồi ban đầu của user: {result['context']}
+            - Câu ngắt lời của user (xảy ra ở đoạn [{result['interrupt_start']:.2f}-{result['interrupt_end']:.2f}] giây): {result['interrupt']}
+            - Đoạn AI nói SAU KHI user ngắt lời xong: {result['post_interrupt_text']}
+            - Toàn bộ transcript AI để đối chiếu nhiễm context cũ: {result['output_text']}
 
-            with open(out_after_interrupt_path, "r") as f:
-                out_after_interrupt = json.load(f)
+            Hãy chỉ đánh giá đoạn AI nói sau mốc {result['interrupt_end']:.2f}s:
+            - Có theo đúng ý hỏi mới không?
+            - Có còn tiếp tục bám ý cũ trước khi bị ngắt không?
+            """
 
-            metadata_path = os.path.join(file_dir, "interrupt.json")
-            is_v15 = False
-            if not os.path.exists(metadata_path):
-                metadata_path = os.path.join(file_dir, "metadata.json")
-                if not os.path.exists(metadata_path):
-                    raise FileNotFoundError("Required file 'interrupt.json' or 'metadata.json' not found.")
-                is_v15 = True
-
-            # read the json file
-            with open(metadata_path, "r", encoding="utf-8") as f:
-                metadata = json.load(f)
-
-            if is_v15:
-                in_interrupt_text = metadata["current_turn_text"]
-                in_before_interrupt_text = metadata["context_text"]
-                input_start_time = metadata["timestamps"][0]
-                input_end_time = metadata["timestamps"][1]
-            else:
-                in_interrupt_text = metadata[0]["interrupt"]
-                in_before_interrupt_text = metadata[0]["context"]
-                input_start_time = metadata[0]["timestamp"][0]
-                input_end_time = metadata[0]["timestamp"][1]
-                
-            # Lấy toàn bộ chunks từ kết quả ASR (Không lọc, không cắt xén)
-            segments_cw = out_after_interrupt.get("chunks", [])
-
-            # Tạo text có kèm timestamp cho AI's response để LLM dễ đánh giá
-            # Ví dụ: "[0.5-0.8] một [0.8-1.2] hà [1.2-1.5] nội"
-            ai_timestamped_text = " ".join([
-                f"[{c['timestamp'][0]:.2f}-{c['timestamp'][1]:.2f}] {c['text']}" 
-                for c in segments_cw if c.get("timestamp") and c["timestamp"][0] is not None
-            ])
-
-            # TOR and latency
-            TOR = None
-            latency = None
-
-            # Tính toán trực tiếp toàn bộ theo thực tế
-            if len(segments_cw) == 0:
-                TOR = 0
-            else:
-                output_start_time = segments_cw[0]["timestamp"][0]
-                duration = (
-                    segments_cw[-1]["timestamp"][-1] - segments_cw[0]["timestamp"][0]
-                )
-                if duration < turn_duration_threshold:
-                    if len(segments_cw) <= turn_num_words_threshold:
-                        TOR = 0
-                    else:
-                        TOR = 1
-                        latency = output_start_time - input_end_time
-                else:
-                    TOR = 1
-                    latency = output_start_time - input_end_time
-
-            take_turn_list.append(TOR)
-            if TOR == 1:
-                user_msg = f"""
-                - Câu mồi ban đầu của user: {in_before_interrupt_text}
-                - Câu ngắt lời của user (xảy ra ở đoạn [{input_start_time:.2f}-{input_end_time:.2f}] giây): {in_interrupt_text}
-                - Toàn bộ phản hồi của AI (kèm mốc thời gian): {ai_timestamped_text}
-                
-                Hãy nhìn vào các mốc thời gian để xác định chính xác những gì AI đã nói SAU KHI người dùng ngắt lời xong ở mốc {input_end_time:.2f}s, và đánh giá chất lượng của riêng đoạn phản hồi đó.
-                """
-
+            for attempt in range(3):
                 prediction = generate_gemini_rating(client, system_msg, user_msg)
-                
-                # Tránh lỗi Rate Limit (429) của gói API Free Tier (giới hạn 5 req/phút)
                 time.sleep(15)
 
                 print(prediction)
                 parsed_output = parse_output(prediction + "\n")
-
-                # In chi tiết thay vì in dict thô
                 print("\n--- Nhận xét của AI ---")
                 print(parsed_output.get("analysis", "Không có phân tích."))
                 print(f"Rating: {parsed_output.get('rating', 'N/A')}")
@@ -166,56 +109,75 @@ def eval_user_interruption(root_dir, client):
                 if "rating" not in parsed_output:
                     if attempt == 2:
                         print(f"Could not parse rating for {file_dir}; skipping rating.")
-                        break
                     continue
-                score = parsed_output["rating"]
-                score_list.append(score)
 
-                # save the parsed_output to a json file
-                with open(os.path.join(file_dir, "rating.json"), "w") as f:
-                    json.dump(parsed_output, f)
+                result["semantic_score"] = parsed_output["rating"]
+                with open(os.path.join(file_dir, "rating.json"), "w", encoding="utf-8") as f:
+                    json.dump(parsed_output, f, ensure_ascii=False, indent=2)
+                break
 
-                # Lấy kết quả thực tế (chấp nhận cả số âm nếu AI nói trước khi user nói xong)
-                if latency is not None:
-                    latency_list.append(latency)
+        rows.append(result)
 
-            break
-
-    avg_rating = sum(score_list) / len(score_list) if len(score_list) > 0 else 0.0
-    avg_tor = sum(take_turn_list) / len(take_turn_list) if len(take_turn_list) > 0 else 0.0
-    avg_latency = sum(latency_list) / len(latency_list) if len(latency_list) > 0 else 0.0
+    avg_rating = average(row["semantic_score"] for row in rows)
+    avg_tor = average(row["post_interrupt_response_rate"] for row in rows)
+    recovery_latencies = [row["recovery_latency"] for row in rows if row["recovery_latency"] is not None]
+    avg_recovery_latency = average(recovery_latencies) if recovery_latencies else None
+    avg_stop_latency = average(row["stop_latency"] for row in rows)
+    avg_overlap_duration = average(row["interrupt_overlap_duration"] for row in rows)
+    stop_success_rate = average(row["stop_success"] for row in rows)
+    listening_success_rate = average(row["listening_success"] for row in rows)
+    overlap_rate = average(row["interrupt_overlap"] for row in rows)
 
     print("---------------------------------------------------")
     print("[Result: User Interruption (Xử lý khi bị ngắt lời)]")
     status_tt = "tốt" if avg_tor > 0.7 else "kém"
-    print(f"1. Response rate (Tỉ lệ chịu phản hồi): {avg_tor:.1%} ({status_tt}) - Càng cao càng tốt")
+    print(f"1. Post-interrupt response rate (Tỉ lệ phản hồi sau ngắt lời): {avg_tor:.1%} ({status_tt}) - Càng cao càng tốt")
 
     status_rating = "tốt" if avg_rating >= 4.0 else ("khá" if avg_rating >= 3.0 else "kém")
-    print(f"2. Context understanding (Điểm hiểu ngữ cảnh trung bình): {avg_rating:.2f}/5.0 ({status_rating}) - Càng cao càng tốt")
+    print(f"2. New intent understanding (Điểm hiểu ý mới): {avg_rating:.2f}/5.0 ({status_rating}) - Càng cao càng tốt")
 
-    barge_in_rate = sum(1 for l in latency_list if l < 0) / len(latency_list) if latency_list else 0.0
-    status_barge = "tốt" if barge_in_rate < 0.2 else "kém"
-    print(f"3. Barge-in rate (Tỉ lệ cướp lời sớm khi user chưa ngắt xong): {barge_in_rate:.1%} ({status_barge}) - Càng thấp càng tốt")
+    status_stop = "tốt" if stop_success_rate > 0.7 else "kém"
+    print(f"3. Stop success rate (Tỉ lệ ngừng nói nhanh khi bị ngắt): {stop_success_rate:.1%} ({status_stop}) - Càng cao càng tốt")
+    print(f"   - Avg stop latency: {avg_stop_latency:.3f}s; avg interrupt overlap: {avg_overlap_duration:.3f}s")
 
-    valid_latencies = [l for l in latency_list if l >= 0]
-    avg_valid_latency = sum(valid_latencies) / len(valid_latencies) if valid_latencies else 0.0
-    status_lat = "tốt" if 0 <= avg_valid_latency <= 2.0 else "chậm"
-    print(f"4. Avg valid latency (Độ trễ phản hồi hợp lệ sau khi ngắt): {avg_valid_latency:.3f}s ({status_lat}) - Càng sát 0 càng tốt")
+    status_listen = "tốt" if listening_success_rate > 0.7 else "kém"
+    print(f"4. Listening success rate (Tỉ lệ im lặng để nghe câu ngắt lời): {listening_success_rate:.1%} ({status_listen})")
+
+    status_lat = "không có phản hồi sau ngắt" if avg_recovery_latency is None else ("tốt" if 0 <= avg_recovery_latency <= 2.0 else "chậm")
+    latency_text = "N/A" if avg_recovery_latency is None else f"{avg_recovery_latency:.3f}s"
+    print(f"5. Avg recovery latency (Độ trễ phản hồi sau khi ngắt): {latency_text} ({status_lat}) - Càng sát 0 càng tốt")
     
-    perfect_tests = sum(1 for t, l, r in zip(take_turn_list, latency_list, score_list) if t == 1 and l >= 0 and r >= 4.0)
-    perfect_rate = perfect_tests / len(score_list) if score_list else 0.0
+    perfect_tests = sum(
+        1
+        for row in rows
+        if row["post_interrupt_response_rate"]
+        and row["stop_success"]
+        and row["listening_success"]
+        and row["recovery_latency"] is not None
+        and 0 <= row["recovery_latency"] <= 2.0
+        and (row["semantic_score"] or 0) >= 4.0
+    )
+    perfect_rate = perfect_tests / len(rows) if rows else 0.0
     status_perfect = "xuất sắc" if perfect_rate > 0.7 else "cần cải thiện"
-    print(f"5. Perfect handling rate (Tỉ lệ xử lý ngắt lời hoàn hảo): {perfect_rate:.1%} ({status_perfect})")
+    print(f"6. Perfect handling rate (Tỉ lệ xử lý ngắt lời hoàn hảo): {perfect_rate:.1%} ({status_perfect})")
     print("---------------------------------------------------")
     
     return {
         "Response rate": avg_tor,
         "Context rating": avg_rating,
-        "Barge-in rate": barge_in_rate,
-        "Avg valid latency": avg_valid_latency,
+        "New intent rating": avg_rating,
+        "Barge-in rate": overlap_rate,
+        "Interruption overlap rate": overlap_rate,
+        "Avg interrupt overlap duration": avg_overlap_duration,
+        "Stop success rate": stop_success_rate,
+        "Avg stop latency": avg_stop_latency,
+        "Listening success rate": listening_success_rate,
+        "Avg valid latency": avg_recovery_latency,
+        "Avg recovery latency": avg_recovery_latency,
         "Perfect handling rate": perfect_rate,
-        "Total tests": len(score_list),
-        "Perfect tests (TOR=1 & lat>=0 & rating>=4)": perfect_tests
+        "Total tests": len(rows),
+        "Perfect tests (TOR=1 & lat>=0 & rating>=4)": perfect_tests,
+        "Per-sample": rows,
     }
 
 
