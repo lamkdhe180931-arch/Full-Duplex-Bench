@@ -62,7 +62,7 @@ CHỈ trả về duy nhất số thứ tự của kết quả tốt nhất: 1, 2
             return 1
     return 1
 
-def format_whisper_chunks(prediction, offset):
+def format_whisper_chunks(prediction, offset, interrupt_end_time=None):
     chunks = []
     text = ""
     for chunk in prediction.get("chunks", []):
@@ -71,11 +71,13 @@ def format_whisper_chunks(prediction, offset):
             continue
         start_time = chunk["timestamp"][0] + offset
         end_time = chunk["timestamp"][1] + offset
+        if interrupt_end_time is not None and start_time < interrupt_end_time:
+            continue
         text += word + " "
         chunks.append({"text": word, "timestamp": [start_time, end_time]})
     return {"text": text.strip(), "chunks": chunks}
 
-def format_chunkformer_chunks(prediction, offset):
+def format_chunkformer_chunks(prediction, offset, interrupt_end_time=None):
     chunks = []
     text = ""
     raw_chunks = prediction if isinstance(prediction, list) else prediction.get("chunks", [])
@@ -87,6 +89,8 @@ def format_chunkformer_chunks(prediction, offset):
             continue
         start_time = ts[0] + offset
         end_time = ts[1] + offset
+        if interrupt_end_time is not None and start_time < interrupt_end_time:
+            continue
         text += word + " "
         chunks.append({"text": word, "timestamp": [start_time, end_time]})
     return {"text": text.strip(), "chunks": chunks}
@@ -156,20 +160,48 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav", mod
         tmp_name = None
         out1, out2, out3 = {"text": "", "chunks": []}, {"text": "", "chunks": []}, {"text": "", "chunks": []}
 
+        # Lấy offset từ inference_timing.json
+        offset = 0.0
+        timing_path = os.path.join(os.path.dirname(audio_path), "inference_timing.json")
+        output_timeline_aligned = False
+        if os.path.exists(timing_path):
+            with open(timing_path, "r", encoding="utf-8") as f:
+                timing = json.load(f)
+                output_timeline_aligned = bool(timing.get("output_timeline_aligned"))
+                if not output_timeline_aligned:
+                    offset = timing.get("response_start_sec") or 0.0
+
+        interrupt_end_time = None
+        if task == "user_interruption":
+            meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "interrupt.json")
+            if not os.path.exists(meta_path):
+                meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "metadata.json")
+
+            if os.path.exists(meta_path):
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    meta_data = json.load(f)
+                if isinstance(meta_data, list):
+                    _, interrupt_end_time = meta_data[0]["timestamp"]
+                else:
+                    _, interrupt_end_time = meta_data["timestamps"]
+            
+            if not os.path.exists(timing_path):
+                offset = interrupt_end_time
+
         def run_phowhisper(wav_path):
             pred = pipe_pho(wav_path, return_timestamps="word", generate_kwargs={"language": "vietnamese", "condition_on_prev_tokens": False})
-            return format_whisper_chunks(pred, 0)
+            return format_whisper_chunks(pred, offset, interrupt_end_time)
 
         def run_whisper_v3(wav_path):
             pred = pipe_whisper(wav_path, return_timestamps="word", generate_kwargs={"language": "vietnamese"})
-            return format_whisper_chunks(pred, 0)
+            return format_whisper_chunks(pred, offset, interrupt_end_time)
 
         def run_chunkformer(wav_path):
             if not model_chunk:
                 return {"text": "", "chunks": []}
             try:
                 pred = model_chunk.endless_decode(audio_path=wav_path, chunk_size=64, left_context_size=128, right_context_size=128, total_batch_duration=14400, return_timestamps=True)
-                result = format_chunkformer_chunks(pred, 0)
+                result = format_chunkformer_chunks(pred, offset, interrupt_end_time)
                 if not result["text"] and isinstance(pred, str):
                     result["text"] = pred
                 return result
