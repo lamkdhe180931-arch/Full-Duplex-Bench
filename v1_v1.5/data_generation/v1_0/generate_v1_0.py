@@ -41,6 +41,9 @@ def generate_pause_handling(generator, mixer, templates, output_base):
         pause_info = [
             {
                 "text": "[PAUSE]",
+                "part_1": item["part_1"],
+                "part_2": item["part_2"],
+                "user_text": f"{item['part_1']} {item['part_2']}",
                 "timestamp": [
                     len_p1_sec,
                     len_p1_sec + pause_duration
@@ -78,7 +81,8 @@ def generate_turn_taking(generator, mixer, templates, output_base):
         # 3. Ghi file chú thích turn_taking.json (mốc kết thúc tại timestamp[0])
         turn_info = [
             {
-                "text": "[TURN-TAKING]",
+                "text": item["text"],
+                "user_text": item["text"],
                 "timestamp": [
                     len_sound_sec,
                     0.0

@@ -74,10 +74,10 @@ def main():
 
         print("\n=== ĐANG CHẠY TOÀN BỘ BENCHMARK V1 ===")
         print("1. Đang chấm điểm Pause Handling (Xử lý khoảng lặng)...")
-        ph_res = eval_pause_handling(os.path.join(args.root_dir, "synthetic_pause_handling"))
+        ph_res = eval_pause_handling(os.path.join(args.root_dir, "synthetic_pause_handling"), client)
         
         print("\n2. Đang chấm điểm Candor Turn Taking (Luân phiên lượt lời)...")
-        stt_res = eval_smooth_turn_taking(os.path.join(args.root_dir, "candor_turn_taking"))
+        stt_res = eval_smooth_turn_taking(os.path.join(args.root_dir, "candor_turn_taking"), client)
         
         print("\n3. Đang chấm điểm User Interruption (Xử lý khi bị ngắt lời)...")
         ui_res = eval_user_interruption(os.path.join(args.root_dir, "synthetic_user_interruption"), client)
@@ -94,11 +94,12 @@ Dưới đây là điểm benchmark âm thanh song công (Full-Duplex V1) của 
 3. User Interruption (Xử lý khi bị ngắt lời):
 {json.dumps(ui_res, indent=2)}
 
-Dựa vào các chỉ số kỹ thuật trên (như độ trễ latency âm hay dương, take turn rate cao hay thấp, rating chất lượng xử lý ngắt lời ra sao), hãy ĐÁNH GIÁ CHẤT LƯỢNG của Agent này bằng Tiếng Việt dưới dạng VÀI GẠCH ĐẦU DÒNG NGẮN GỌN.
+Dựa vào các chỉ số kỹ thuật và semantic trên (latency, barge-in, answer relevance, previous answer rating, new intent rating, old context leakage), hãy ĐÁNH GIÁ CHẤT LƯỢNG của Agent này bằng Tiếng Việt dưới dạng VÀI GẠCH ĐẦU DÒNG NGẮN GỌN.
 Chỉ tập trung vào kết luận nhanh: 
 - Phản xạ nhanh/chậm ra sao? 
 - Có bị lỗi cướp lời không? 
-- Xử lý ngắt lời có mượt và đúng ngữ cảnh không?
+- Câu trả lời có đúng trọng tâm không?
+- Xử lý ngắt lời có trả lời tốt câu cũ, chuyển đúng câu mới, và tránh dính context cũ không?
 Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN NGẮN GỌN.
 """
         print("Đang gửi số liệu cho Gemini để viết tóm tắt đánh giá...")
@@ -159,9 +160,15 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
 
         def fmt_sec(value):
             return "N/A" if value is None else f"{value:.3f}s"
+
+        def fmt_score(value):
+            return "N/A" if value is None else f"{value:.2f} / 5.0"
+
+        def fmt_percent(value):
+            return "N/A" if value is None else f"{value:.1%}"
         
         total_tests = ph_res.get("Total tests", 0) + stt_res.get("Total tests", 0) + ui_res.get("Total tests", 0)
-        good_tests = ph_res.get("Perfect tests (listen+respond)", ph_res.get("Perfect tests (TOR=0)", 0)) + stt_res.get("Perfect tests (smooth)", 0) + ui_res.get("Perfect tests (TOR=1 & lat>=0 & rating>=4)", 0)
+        good_tests = ph_res.get("Perfect tests (listen+respond)", ph_res.get("Perfect tests (TOR=0)", 0)) + stt_res.get("Semantic success tests", stt_res.get("Perfect tests (smooth)", 0)) + ui_res.get("Perfect tests (TOR=1 & lat>=0 & rating>=4)", 0)
         
         html_content = f"""<!DOCTYPE html>
 <html lang="vi">
@@ -220,6 +227,8 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             <tr><td>Listen-through rate (Tiếp tục lắng nghe đến hết input)</td><td>{ph_res.get("Listen-through rate", ph_res.get("Silence rate", 0)):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
             <tr><td>Pause barge-in rate (Nói chen trong khoảng ngập ngừng)</td><td>{ph_res.get("Pause barge-in rate", 0):.1%} (Mục tiêu: Càng thấp càng tốt)</td></tr>
             <tr><td>Continuation barge-in rate (Nói chen khi user nói tiếp)</td><td>{ph_res.get("Continuation barge-in rate", 0):.1%} (Mục tiêu: Càng thấp càng tốt)</td></tr>
+            <tr><td>Answer relevance score (Trả lời đúng trọng tâm)</td><td>{fmt_score(ph_res.get("Answer relevance score"))} (Mục tiêu: >= 4.0)</td></tr>
+            <tr><td>On-topic rate (Tỉ lệ đúng trọng tâm)</td><td>{fmt_percent(ph_res.get("On-topic rate"))} (Mục tiêu: Càng cao càng tốt)</td></tr>
             <tr><td>Final response success rate (Nghe hết rồi trả lời nhanh)</td><td>{ph_res.get("Final response success rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
             <tr><td>Avg valid latency (Độ trễ sau khi user nói xong)</td><td>{fmt_sec(ph_res.get("Avg valid latency"))} (Mục tiêu: 0-1.5s)</td></tr>
         </table>
@@ -234,7 +243,8 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             <tr><td>Post-turn response rate (Phản hồi sau khi user kết thúc)</td><td>{stt_res.get("Post-turn response rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
             <tr><td>Barge-in rate (Tỉ lệ cướp lời sớm)</td><td>{stt_res.get("Barge-in rate", 0):.1%} (Mục tiêu: Càng thấp càng tốt)</td></tr>
             <tr><td>Avg valid latency (Độ trễ hợp lệ)</td><td>{fmt_sec(stt_res.get("Avg valid latency"))} (Mục tiêu: 0-1.5s)</td></tr>
-            <tr><td>Smooth turn rate (Tỉ lệ mượt mà)</td><td>{stt_res.get("Smooth turn rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
+            <tr><td>Answer relevance score (Trả lời đúng trọng tâm)</td><td>{fmt_score(stt_res.get("Answer relevance score"))} (Mục tiêu: >= 4.0)</td></tr>
+            <tr><td>On-topic rate (Tỉ lệ đúng trọng tâm)</td><td>{fmt_percent(stt_res.get("On-topic rate"))} (Mục tiêu: Càng cao càng tốt)</td></tr>
         </table>
         <h4>Bản ghi âm (Input + Output gộp)</h4>
         {stt_audio_html}
@@ -243,7 +253,11 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
         <p><strong>Số lượng test:</strong> {ui_res.get("Total tests", 0)} (Hoàn hảo: {ui_res.get("Perfect tests (TOR=1 & lat>=0 & rating>=4)", 0)})</p>
         <table>
             <tr><th>Chỉ số</th><th>Giá trị</th></tr>
-            <tr><td>New intent rating (Điểm hiểu ý mới)</td><td>{ui_res.get("New intent rating", ui_res.get("Context rating", 0)):.2f} / 5.0 (Mục tiêu: >= 4.0)</td></tr>
+            <tr><td>Previous answer rating (Trả lời câu hỏi trước)</td><td>{ui_res.get("Previous answer rating", ui_res.get("Context rating", 0)):.2f} / 5.0 (Mục tiêu: >= 4.0)</td></tr>
+            <tr><td>New intent rating (Điểm hiểu ý mới)</td><td>{ui_res.get("New intent rating", 0):.2f} / 5.0 (Mục tiêu: >= 4.0)</td></tr>
+            <tr><td>Old context leakage score (Dính context cũ sau interrupt)</td><td>{ui_res.get("Old context leakage score", 0):.2f} / 5.0 (Mục tiêu: <= 1.0)</td></tr>
+            <tr><td>Overall semantic rating (Tổng semantic)</td><td>{ui_res.get("Overall semantic rating", 0):.2f} / 5.0 (Mục tiêu: >= 4.0)</td></tr>
+            <tr><td>Semantic success rate (Đúng cả câu cũ/câu mới)</td><td>{ui_res.get("Semantic success rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
             <tr><td>Stop success rate (Ngừng nói nhanh khi bị ngắt)</td><td>{ui_res.get("Stop success rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
             <tr><td>Avg stop latency (Độ trễ ngừng nói)</td><td>{fmt_sec(ui_res.get("Avg stop latency"))} (Mục tiêu: <= 0.7s)</td></tr>
             <tr><td>Listening success rate (Im lặng để nghe câu ngắt lời)</td><td>{ui_res.get("Listening success rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>

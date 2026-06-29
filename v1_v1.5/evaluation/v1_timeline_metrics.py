@@ -180,6 +180,17 @@ def output_text_after(sample_dir, event_time):
     return " ".join(text for text in selected if text).strip()
 
 
+def output_text_before(sample_dir, event_time):
+    output_data = read_json(os.path.join(sample_dir, "output.json"), {"text": "", "chunks": []})
+    chunks = output_data.get("chunks", [])
+    selected = []
+    for chunk in chunks:
+        timestamp = chunk.get("timestamp") or []
+        if timestamp and timestamp[0] is not None and timestamp[0] < event_time:
+            selected.append(chunk.get("text", "").strip())
+    return " ".join(text for text in selected if text).strip()
+
+
 def output_text(sample_dir):
     output_data = read_json(os.path.join(sample_dir, "output.json"), {"text": "", "chunks": []})
     return output_data.get("text", "")
@@ -329,6 +340,7 @@ def evaluate_user_interruption_sample(
         "recovery_latency": recovery_latency,
         "valid_response_latency": recovery_latency,
         "latency_status": latency_status(recovery_latency, recovery_latency_limit_sec),
+        "pre_interrupt_text": output_text_before(sample_dir, interrupt_start or 0.0),
         "post_interrupt_text": output_text_after(sample_dir, interrupt_end or 0.0),
         "output_text": output_text(sample_dir),
     }

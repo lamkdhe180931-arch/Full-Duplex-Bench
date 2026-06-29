@@ -105,6 +105,8 @@ class V1TimelineMetricsTest(unittest.TestCase):
         self.assertEqual(result["listening_success"], 1)
         self.assertAlmostEqual(result["recovery_latency"], 0.25, delta=0.08)
         self.assertEqual(result["post_interrupt_response_rate"], 1)
+        self.assertEqual(result["pre_interrupt_text"], "old")
+        self.assertEqual(result["post_interrupt_text"], "new")
 
 
 if __name__ == "__main__":
