@@ -1,13 +1,11 @@
 import argparse
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
 
 # Load environment variables from .env file
 load_dotenv()
 
-# For OpenAI API api key
-api_key = os.getenv("OPENAI_API_KEY")
+gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 
 def main():
@@ -51,12 +49,11 @@ def main():
         eval_smooth_turn_taking(args.root_dir)
     elif args.task == "user_interruption":
         from eval_user_interruption import eval_user_interruption
+        from google import genai
 
-        client = OpenAI(
-            # organization=organization,
-            api_key=api_key,
-        )
-        client.models.list()
+        if not gemini_api_key:
+            raise ValueError("GEMINI_API_KEY not found in environment.")
+        client = genai.Client(api_key=gemini_api_key)
         eval_user_interruption(args.root_dir, client)
 
     elif args.task == "general_before_after":
@@ -90,8 +87,10 @@ def main():
                     f.write(line)
 
     elif args.task == "behavior":
+        from openai import OpenAI
         from eval_behavior import eval_behavior_all
 
+        api_key = os.getenv("OPENAI_API_KEY")
         client = OpenAI(
             # organization=organization,
             api_key=api_key,

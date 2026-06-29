@@ -27,10 +27,20 @@ def parse_output(data):
     return example
 
 
+def generate_gemini_rating(client, system_msg, user_msg):
+    model_name = os.getenv("GEMINI_RATING_MODEL", "gemini-2.5-flash")
+    prompt = f"{system_msg.strip()}\n\n{user_msg.strip()}"
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt,
+    )
+    return response.text or ""
+
+
 def eval_user_interruption(root_dir, client):
 
-    MODEL_NAME = "gpt-4-turbo"
-    seed = 0
+    if client is None:
+        raise ValueError("Gemini client is required for user_interruption rating.")
 
     system_msg = """
    The scenario is that the user and AI are talking in the spoken conversation.
@@ -129,18 +139,7 @@ def eval_user_interruption(root_dir, client):
                 - AI's response: {out_after_interrupt_text}
                 """
 
-                messages = [
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg},
-                ]
-
-                response = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=messages,
-                    seed=seed,
-                )
-
-                prediction = response.choices[0].message.content
+                prediction = generate_gemini_rating(client, system_msg, user_msg)
 
                 print(prediction)
                 parsed_output = parse_output(prediction + "\n")
@@ -177,4 +176,11 @@ if __name__ == "__main__":
     parser.add_argument("--root_dir", type=str)
     args = parser.parse_args()
 
-    eval_user_interruption(args.root_dir)
+    from dotenv import load_dotenv
+    from google import genai
+
+    load_dotenv()
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        raise ValueError("GEMINI_API_KEY not found in environment.")
+    eval_user_interruption(args.root_dir, genai.Client(api_key=gemini_api_key))
