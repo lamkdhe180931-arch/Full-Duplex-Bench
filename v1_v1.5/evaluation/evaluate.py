@@ -115,10 +115,35 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             print(f"[ERROR] {gemini_summary}")
 
         # === GENERATE HTML REPORT ===
+        import shutil
         from datetime import datetime
-        report_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "reports")
+        # Đổi đường dẫn lưu báo cáo ra ngoài thư mục working hiện tại để dễ tải về trên Kaggle
+        report_dir = os.path.join(os.getcwd(), "reports")
+        audio_dir = os.path.join(report_dir, "audio")
         os.makedirs(report_dir, exist_ok=True)
+        os.makedirs(audio_dir, exist_ok=True)
         
+        def collect_audio_html(task_name, base_path):
+            html_parts = []
+            if not os.path.exists(base_path): return ""
+            for folder in sorted(os.listdir(base_path)):
+                if folder.startswith("."): continue
+                combined_wav = os.path.join(base_path, folder, "combined.wav")
+                if os.path.exists(combined_wav):
+                    out_name = f"{task_name}_{folder}_combined.wav"
+                    shutil.copy2(combined_wav, os.path.join(audio_dir, out_name))
+                    html_parts.append(f"""
+                    <div style="margin-top:10px;">
+                        <strong>{folder}</strong><br>
+                        <audio controls src="audio/{out_name}"></audio>
+                    </div>
+                    """)
+            return "".join(html_parts)
+
+        ph_audio_html = collect_audio_html("ph", os.path.join(args.root_dir, "synthetic_pause_handling"))
+        stt_audio_html = collect_audio_html("stt", os.path.join(args.root_dir, "candor_turn_taking"))
+        ui_audio_html = collect_audio_html("ui", os.path.join(args.root_dir, "synthetic_user_interruption"))
+
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_path = os.path.join(report_dir, f"benchmark_v1_report_{timestamp_str}.html")
         
@@ -181,6 +206,8 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             <tr><th>Chỉ số</th><th>Giá trị</th></tr>
             <tr><td>Average take turn (tỉ lệ cướp lời)</td><td>{ph_res.get("Average take turn", "N/A")} (Mục tiêu: 0.0)</td></tr>
         </table>
+        <h4>Bản ghi âm (Input + Output gộp)</h4>
+        {ph_audio_html}
 
         <h3>2.2. Smooth Turn Taking (Luân phiên lượt lời)</h3>
         <p><strong>Số lượng test:</strong> {stt_res.get("Total tests", 0)} (Đạt: {stt_res.get("Good tests (TOR=1 & 0<=lat<=1.5)", 0)})</p>
@@ -189,6 +216,8 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             <tr><td>Average take turn (tỉ lệ phản hồi)</td><td>{stt_res.get("Average take turn", "N/A")} (Mục tiêu: 1.0)</td></tr>
             <tr><td>Average latency (độ trễ phản xạ)</td><td>{stt_res.get("Average latency", "N/A"):.3f}s (Mục tiêu: > 0s)</td></tr>
         </table>
+        <h4>Bản ghi âm (Input + Output gộp)</h4>
+        {stt_audio_html}
 
         <h3>2.3. User Interruption (Xử lý khi bị ngắt lời)</h3>
         <p><strong>Số lượng test:</strong> {ui_res.get("Total tests", 0)} (Đạt: {ui_res.get("Good tests (TOR=1 & lat>=0 & rating>=3)", 0)})</p>
@@ -198,6 +227,8 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             <tr><td>Average take turn (tỉ lệ phản hồi)</td><td>{ui_res.get("Average take turn", "N/A")} (Mục tiêu: 1.0)</td></tr>
             <tr><td>Average latency (độ trễ ngắt lời)</td><td>{ui_res.get("Average latency", "N/A"):.3f}s (Mục tiêu: > 0s)</td></tr>
         </table>
+        <h4>Bản ghi âm (Input + Output gộp)</h4>
+        {ui_audio_html}
     </div>
 
 </body>
