@@ -74,7 +74,7 @@ def eval_user_interruption(root_dir, client):
 
     for file_dir in tqdm(sorted(file_dirs)):
         # read the json file
-        while True:
+        for attempt in range(3):
             print(f"Processing {file_dir} ...")
 
             out_after_interrupt_path = os.path.join(file_dir, "output.json")
@@ -146,6 +146,9 @@ def eval_user_interruption(root_dir, client):
 
                 print(parsed_output)
                 if "rating" not in parsed_output:
+                    if attempt == 2:
+                        print(f"Could not parse rating for {file_dir}; skipping rating.")
+                        break
                     continue
                 score = parsed_output["rating"]
                 score_list.append(score)
@@ -154,8 +157,6 @@ def eval_user_interruption(root_dir, client):
                 with open(os.path.join(file_dir, "rating.json"), "w") as f:
                     json.dump(parsed_output, f)
 
-                score = parsed_output["rating"]
-                score_list.append(score)
                 if latency < 0:
                     latency_list.append(0)
                 elif latency >= 0:

@@ -5,19 +5,5 @@
     "interrupt": "À từ từ, tôi đổi ý rồi, chuyển lịch trình sang đi Phú Quốc nhé.",
     "interrupt_delay_sec": 2.5,
     "description": "Đổi hoàn toàn chủ đề sau 2.5s"
-  },
-  {
-    "id": "interrupt_002",
-    "context": "Cho tôi biết cách pha một cốc cà phê phin đúng chuẩn đi.",
-    "interrupt": "Thôi tôi không uống cà phê nữa đâu, hướng dẫn pha trà đào đi.",
-    "interrupt_delay_sec": 3.0,
-    "description": "Đổi hoàn toàn ý định sau 3s"
-  },
-  {
-    "id": "interrupt_003",
-    "context": "Kể cho tôi nghe tóm tắt về nội dung của bộ phim Titanic.",
-    "interrupt": "Chờ đã, đừng kể đoạn kết nhé, tôi không muốn bị spoil đâu.",
-    "interrupt_delay_sec": 2.5,
-    "description": "Đưa ra ràng buộc mới giữa chừng"
   }
 ]

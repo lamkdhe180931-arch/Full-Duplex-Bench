@@ -89,7 +89,7 @@ class SynchronizedRecorder:
 
     def __init__(self, out_sr: int, outfile: str, session_start_time: float):
         self.out_sr = out_sr
-        self.queue: asyncio.Queue[bytes] = asyncio.Queue()
+        self.queue: asyncio.Queue[Tuple[float, bytes]] = asyncio.Queue()
         self.outfile = outfile
         self.running = True
         self.session_start_time = session_start_time
@@ -102,7 +102,7 @@ class SynchronizedRecorder:
         if self.first_audio_wall_sec is None:
             self.first_audio_wall_sec = now
         self.last_audio_wall_sec = now
-        await self.queue.put(pcm)
+        await self.queue.put((now, pcm))
 
     def interrupt(self):
         cleared = 0
@@ -132,9 +132,14 @@ class SynchronizedRecorder:
         try:
             while self.running or not self.queue.empty():
                 try:
-                    pcm = await asyncio.wait_for(self.queue.get(), timeout=0.05)
+                    wall_sec, pcm = await asyncio.wait_for(self.queue.get(), timeout=0.05)
                 except asyncio.TimeoutError:
                     continue
+                target_sample = int(round((wall_sec - self.first_audio_wall_sec) * self.out_sr))
+                silence_samples = target_sample - self.samples_written
+                if silence_samples > 0:
+                    wf.writeframes(b"\x00\x00" * silence_samples)
+                    self.samples_written += silence_samples
                 wf.writeframes(pcm)
                 self.samples_written += len(pcm) // 2
         finally:

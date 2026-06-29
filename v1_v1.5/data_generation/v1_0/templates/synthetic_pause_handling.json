@@ -5,19 +5,5 @@
     "part_2": "2 người, ở trung tâm thành phố Đà Nẵng.",
     "pause_duration_sec": 0.45,
     "description": "Người dùng ngập ngừng "
-  },
-  {
-    "id": "pause_002",
-    "part_1": "Thực đơn bữa tối nay gồm có",
-    "part_2": "canh cà chua, cá kho tộ và rau muống luộc.",
-    "pause_duration_sec": 0.65,
-    "description": "Người dùng ngập ngừng trước liên từ nối."
-  },
-  {
-    "id": "pause_003",
-    "part_1": "Ngày mai tôi có một cuộc họp vô cùng ",
-    "part_2": "quan trọng vào lúc chín giờ sáng.",
-    "pause_duration_sec": 0.50,
-    "description": "Người dùng ngập ngừng "
   }
 ]

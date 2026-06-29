@@ -3,15 +3,5 @@
     "id": "turn_001",
     "text": "Bạn có thể cho tôi biết thời tiết ở Hà Nội ngày mai như thế nào không?",
     "description": "Câu hỏi đóng, giọng điệu tự nhiên."
-  },
-  {
-    "id": "turn_002",
-    "text": "Giải thích cho tôi hiểu đơn giản về hố đen vũ trụ là gì nhé.",
-    "description": "Câu trần thuật mang tính yêu cầu."
-  },
-  {
-    "id": "turn_003",
-    "text": "Để làm món sườn xào chua ngọt thì tôi cần chuẩn bị những nguyên liệu gì?",
-    "description": "Câu hỏi mở, tìm kiếm thông tin dài."
   }
 ]

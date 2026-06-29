@@ -92,31 +92,31 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
             with open(timing_path, "r", encoding="utf-8") as f:
                 offset = json.load(f).get("response_start_sec") or 0.0
 
+        interrupt_end_time = None
+        if task == "user_interruption":
+            meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "interrupt.json")
+            if not os.path.exists(meta_path):
+                meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "metadata.json")
+
+            if not os.path.exists(meta_path):
+                raise FileNotFoundError(f"Neither interrupt.json nor metadata.json found in {os.path.dirname(audio_path)}")
+
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta_data = json.load(f)
+
+            if isinstance(meta_data, list):
+                _, interrupt_end_time = meta_data[0]["timestamp"]
+            else:
+                _, interrupt_end_time = meta_data["timestamps"]
+
         # Legacy synchronized output.wav included the full input timeline, so ASR
         # cropped before the interrupt end. Dynamic output.wav contains only the
         # Gemini response, so inference_timing.json supplies the timeline offset.
         if task == "user_interruption" and not os.path.exists(timing_path):
-            # Load the interrupt metadata to get [start, end] timestamps
-            meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "interrupt.json")
-            if not os.path.exists(meta_path):
-                meta_path = audio_path.replace(f"{MODEL_NAME}{audio_name}", "metadata.json")
-            
-            if not os.path.exists(meta_path):
-                raise FileNotFoundError(f"Neither interrupt.json nor metadata.json found in {os.path.dirname(audio_path)}")
-                
-            with open(meta_path, "r", encoding="utf-8") as f:
-                meta_data = json.load(f)
-
-            # Extract end_interrupt depending on schema (v1.0 list vs v1.5 dict)
-            if isinstance(meta_data, list):
-                _, end_interrupt = meta_data[0]["timestamp"]
-            else:
-                _, end_interrupt = meta_data["timestamps"]
-                
-            offset = end_interrupt
+            offset = interrupt_end_time
 
             # Compute the sample index to start from, and crop the waveform
-            start_idx = int(end_interrupt * sr)
+            start_idx = int(interrupt_end_time * sr)
             waveform = waveform[start_idx:]
 
         # Crop trailing silence (padded as absolute zeros) to prevent Whisper hallucinating loops/unk/a.
@@ -170,6 +170,9 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
             
             start_time = chunk["timestamp"][0] + offset
             end_time = chunk["timestamp"][1] + offset
+
+            if interrupt_end_time is not None and start_time < interrupt_end_time:
+                continue
 
             text += word_clean + " "
             chunks.append(
