@@ -117,8 +117,14 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
         # === GENERATE HTML REPORT ===
         import shutil
         from datetime import datetime
-        # Đổi đường dẫn lưu báo cáo ra ngoài thư mục working hiện tại để dễ tải về trên Kaggle
-        report_dir = os.path.join(os.getcwd(), "reports")
+        # Fix path to ensure it appears in Kaggle/Colab output window
+        if os.path.exists("/kaggle/working"):
+            report_dir = "/kaggle/working/reports"
+        elif os.path.exists("/content"):
+            report_dir = "/content/reports"
+        else:
+            report_dir = os.path.join(os.getcwd(), "reports")
+            
         audio_dir = os.path.join(report_dir, "audio")
         os.makedirs(report_dir, exist_ok=True)
         os.makedirs(audio_dir, exist_ok=True)
