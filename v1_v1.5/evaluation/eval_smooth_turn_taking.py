@@ -45,7 +45,7 @@ def eval_smooth_turn_taking(data_dir):
 
         with open(audio_input_file, "r") as f:
             input_turn = json.load(f)
-        input_end_time = input_turn[0]["timestamp"][0]
+        input_end_time = input_turn[0]["timestamp"][1]
 
         TOR = None
         latency = None
@@ -89,25 +89,32 @@ def eval_smooth_turn_taking(data_dir):
     average_latency = sum(latency_list) / len(latency_list) if len(latency_list) > 0 else 0.0
 
     print("---------------------------------------------------")
-    print("[Result]")
-    status_tt = "tốt" if average_take_turn > 0.7 else "xấu"
-    if average_latency < 0:
-        status_lat = "xấu (cướp lời)"
-    elif average_latency <= 1.5:
-        status_lat = "tốt"
-    else:
-        status_lat = "kém (chậm)"
-        
-    print(f"Average take turn (tỉ lệ phản hồi): {average_take_turn}: {status_tt} (0-1 \"càng lớn càng tốt\")")
-    print(f"Average latency (độ trễ phản xạ): {average_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là cướp lời\")")
+    print("[Result: Smooth Turn Taking (Luân phiên lượt lời)]")
+    status_tt = "tốt" if average_take_turn > 0.7 else "kém"
+    print(f"1. Response rate (Tỉ lệ chịu phản hồi): {average_take_turn:.1%} ({status_tt}) - Càng cao càng tốt")
+    
+    barge_in_rate = sum(1 for l in latency_list if l < 0) / len(latency_list) if latency_list else 0.0
+    status_barge = "tốt" if barge_in_rate < 0.2 else "kém"
+    print(f"2. Barge-in rate (Tỉ lệ cướp lời sớm khi chưa xong lượt): {barge_in_rate:.1%} ({status_barge}) - Càng thấp càng tốt")
+
+    valid_latencies = [l for l in latency_list if l >= 0]
+    avg_valid_latency = sum(valid_latencies) / len(valid_latencies) if valid_latencies else 0.0
+    status_lat = "tốt" if 0 <= avg_valid_latency <= 1.5 else "chậm"
+    print(f"3. Avg valid latency (Độ trễ trung bình hợp lệ): {avg_valid_latency:.3f}s ({status_lat}) - Càng sát 0 càng tốt")
+    
+    smooth_tests = sum(1 for t, l in zip(take_turn_list, latency_list) if t == 1 and 0 <= l <= 1.5)
+    smooth_rate = smooth_tests / len(take_turn_list) if take_turn_list else 0.0
+    status_smooth = "xuất sắc" if smooth_rate > 0.7 else "cần cải thiện"
+    print(f"4. Smooth turn rate (Tỉ lệ luân phiên mượt mà hoàn hảo): {smooth_rate:.1%} ({status_smooth})")
     print("---------------------------------------------------")
     
-    good_tests = sum(1 for t, l in zip(take_turn_list, latency_list) if t == 1 and 0 <= l <= 1.5)
     return {
-        "Average take turn": average_take_turn,
-        "Average latency": average_latency,
+        "Response rate": average_take_turn,
+        "Barge-in rate": barge_in_rate,
+        "Avg valid latency": avg_valid_latency,
+        "Smooth turn rate": smooth_rate,
         "Total tests": len(take_turn_list),
-        "Good tests (TOR=1 & 0<=lat<=1.5)": good_tests
+        "Perfect tests (smooth)": smooth_tests
     }
 
 

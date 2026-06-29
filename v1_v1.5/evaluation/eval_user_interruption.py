@@ -186,28 +186,36 @@ def eval_user_interruption(root_dir, client):
     avg_latency = sum(latency_list) / len(latency_list) if len(latency_list) > 0 else 0.0
 
     print("---------------------------------------------------")
-    print("[Result]")
-    status_rating = "tốt" if avg_rating >= 4.0 else ("khá" if avg_rating >= 3.0 else "xấu")
-    status_tt = "tốt" if avg_tor > 0.7 else "xấu"
-    if avg_latency < 0:
-        status_lat = "xấu (lảm nhảm ý cũ)"
-    elif avg_latency <= 2.0:
-        status_lat = "tốt"
-    else:
-        status_lat = "kém (chậm)"
+    print("[Result: User Interruption (Xử lý khi bị ngắt lời)]")
+    status_tt = "tốt" if avg_tor > 0.7 else "kém"
+    print(f"1. Response rate (Tỉ lệ chịu phản hồi): {avg_tor:.1%} ({status_tt}) - Càng cao càng tốt")
 
-    print(f"Average rating (điểm chất lượng xử lý): {avg_rating}: {status_rating} (0-5 \"càng lớn càng tốt\")")
-    print(f"Average take turn (tỉ lệ phản hồi): {avg_tor}: {status_tt} (0-1 \"càng lớn càng tốt\")")
-    print(f"Average latency (độ trễ ngắt lời): {avg_latency:.3f}s: {status_lat} (dương \"càng nhỏ càng tốt, âm là lảm nhảm ý cũ\")")
+    status_rating = "tốt" if avg_rating >= 4.0 else ("khá" if avg_rating >= 3.0 else "kém")
+    print(f"2. Context understanding (Điểm hiểu ngữ cảnh trung bình): {avg_rating:.2f}/5.0 ({status_rating}) - Càng cao càng tốt")
+
+    barge_in_rate = sum(1 for l in latency_list if l < 0) / len(latency_list) if latency_list else 0.0
+    status_barge = "tốt" if barge_in_rate < 0.2 else "kém"
+    print(f"3. Barge-in rate (Tỉ lệ cướp lời sớm khi user chưa ngắt xong): {barge_in_rate:.1%} ({status_barge}) - Càng thấp càng tốt")
+
+    valid_latencies = [l for l in latency_list if l >= 0]
+    avg_valid_latency = sum(valid_latencies) / len(valid_latencies) if valid_latencies else 0.0
+    status_lat = "tốt" if 0 <= avg_valid_latency <= 2.0 else "chậm"
+    print(f"4. Avg valid latency (Độ trễ phản hồi hợp lệ sau khi ngắt): {avg_valid_latency:.3f}s ({status_lat}) - Càng sát 0 càng tốt")
+    
+    perfect_tests = sum(1 for t, l, r in zip(take_turn_list, latency_list, score_list) if t == 1 and l >= 0 and r >= 4.0)
+    perfect_rate = perfect_tests / len(score_list) if score_list else 0.0
+    status_perfect = "xuất sắc" if perfect_rate > 0.7 else "cần cải thiện"
+    print(f"5. Perfect handling rate (Tỉ lệ xử lý ngắt lời hoàn hảo): {perfect_rate:.1%} ({status_perfect})")
     print("---------------------------------------------------")
     
-    good_tests = sum(1 for t, l, r in zip(take_turn_list, latency_list, score_list) if t == 1 and l >= 0 and r >= 3.0)
     return {
-        "Average rating": avg_rating,
-        "Average take turn": avg_tor,
-        "Average latency": avg_latency,
+        "Response rate": avg_tor,
+        "Context rating": avg_rating,
+        "Barge-in rate": barge_in_rate,
+        "Avg valid latency": avg_valid_latency,
+        "Perfect handling rate": perfect_rate,
         "Total tests": len(score_list),
-        "Good tests (TOR=1 & lat>=0 & rating>=3)": good_tests
+        "Perfect tests (TOR=1 & lat>=0 & rating>=4)": perfect_tests
     }
 
 

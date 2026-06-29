@@ -26,10 +26,12 @@ def eval_pause_handling(data_dir):
                 audio_output_files.append(os.path.join(data_dir, folder, file_o))
 
     take_turn_list = []
+    barge_in_durations = []
 
     for audio_output_file in tqdm(audio_output_files, desc="evaluate"):
 
         TOR = None
+        duration = 0.0
 
         # if audio_output_file is not found, raise an error
         if not os.path.exists(audio_output_file):
@@ -60,19 +62,33 @@ def eval_pause_handling(data_dir):
                 TOR = 1
 
         take_turn_list.append(TOR)
+        if TOR == 1:
+            barge_in_durations.append(duration)
 
-    average_take_turn = sum(take_turn_list) / len(take_turn_list)
+    average_take_turn = sum(take_turn_list) / len(take_turn_list) if take_turn_list else 0.0
+    silence_rate = 1.0 - average_take_turn
+    avg_barge_in_dur = sum(barge_in_durations) / len(barge_in_durations) if barge_in_durations else 0.0
 
     print("---------------------------------------------------")
-    print("[Result]")
-    status = "tốt" if average_take_turn < 0.3 else "xấu"
-    print(f"Average take turn (tỉ lệ cướp lời): {average_take_turn}: {status} (0-1 \"càng nhỏ càng tốt\")")
+    print("[Result: Pause Handling (Xử lý khoảng lặng)]")
+    status_silence = "tốt" if silence_rate > 0.7 else "kém"
+    print(f"1. Silence rate (Tỉ lệ giữ im lặng thành công): {silence_rate:.1%} ({status_silence}) - Càng cao càng tốt")
+    
+    status_tor = "tốt" if average_take_turn < 0.3 else "kém"
+    print(f"2. Barge-in rate (Tỉ lệ cướp lời sai): {average_take_turn:.1%} ({status_tor}) - Càng thấp càng tốt")
+    
+    if barge_in_durations:
+        print(f"3. Avg barge-in duration (Độ dài lảm nhảm trung bình khi sai): {avg_barge_in_dur:.2f}s - Càng ngắn càng tốt")
+    else:
+        print("3. Avg barge-in duration: Không có lỗi cướp lời! (Tuyệt vời)")
     print("---------------------------------------------------")
     
     return {
-        "Average take turn": average_take_turn,
+        "Silence rate": silence_rate,
+        "Barge-in rate": average_take_turn,
+        "Avg barge-in duration": avg_barge_in_dur,
         "Total tests": len(take_turn_list),
-        "Good tests (TOR=0)": take_turn_list.count(0)
+        "Perfect tests (TOR=0)": take_turn_list.count(0)
     }
 
 

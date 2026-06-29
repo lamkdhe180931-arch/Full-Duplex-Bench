@@ -154,7 +154,7 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
         report_path = os.path.join(report_dir, f"benchmark_v1_report_{timestamp_str}.html")
         
         total_tests = ph_res.get("Total tests", 0) + stt_res.get("Total tests", 0) + ui_res.get("Total tests", 0)
-        good_tests = ph_res.get("Good tests (TOR=0)", 0) + stt_res.get("Good tests (TOR=1 & 0<=lat<=1.5)", 0) + ui_res.get("Good tests (TOR=1 & lat>=0 & rating>=3)", 0)
+        good_tests = ph_res.get("Perfect tests (TOR=0)", 0) + stt_res.get("Perfect tests (smooth)", 0) + ui_res.get("Perfect tests (TOR=1 & lat>=0 & rating>=4)", 0)
         
         html_content = f"""<!DOCTYPE html>
 <html lang="vi">
@@ -207,31 +207,37 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
         <h2>2. Chi tiết kết quả theo từng hạng mục</h2>
         
         <h3>2.1. Pause Handling (Xử lý khoảng lặng)</h3>
-        <p><strong>Số lượng test:</strong> {ph_res.get("Total tests", 0)} (Đạt: {ph_res.get("Good tests (TOR=0)", 0)})</p>
+        <p><strong>Số lượng test:</strong> {ph_res.get("Total tests", 0)} (Hoàn hảo: {ph_res.get("Perfect tests (TOR=0)", 0)})</p>
         <table>
             <tr><th>Chỉ số</th><th>Giá trị</th></tr>
-            <tr><td>Average take turn (tỉ lệ cướp lời)</td><td>{ph_res.get("Average take turn", "N/A")} (Mục tiêu: 0.0)</td></tr>
+            <tr><td>Silence rate (Tỉ lệ giữ im lặng)</td><td>{ph_res.get("Silence rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
+            <tr><td>Barge-in rate (Tỉ lệ cướp lời sai)</td><td>{ph_res.get("Barge-in rate", 0):.1%} (Mục tiêu: Càng thấp càng tốt)</td></tr>
+            <tr><td>Avg barge-in duration (Độ dài lảm nhảm)</td><td>{ph_res.get("Avg barge-in duration", 0):.2f}s (Mục tiêu: Càng ngắn càng tốt)</td></tr>
         </table>
         <h4>Bản ghi âm (Input + Output gộp)</h4>
         {ph_audio_html}
 
         <h3>2.2. Smooth Turn Taking (Luân phiên lượt lời)</h3>
-        <p><strong>Số lượng test:</strong> {stt_res.get("Total tests", 0)} (Đạt: {stt_res.get("Good tests (TOR=1 & 0<=lat<=1.5)", 0)})</p>
+        <p><strong>Số lượng test:</strong> {stt_res.get("Total tests", 0)} (Hoàn hảo: {stt_res.get("Perfect tests (smooth)", 0)})</p>
         <table>
             <tr><th>Chỉ số</th><th>Giá trị</th></tr>
-            <tr><td>Average take turn (tỉ lệ phản hồi)</td><td>{stt_res.get("Average take turn", "N/A")} (Mục tiêu: 1.0)</td></tr>
-            <tr><td>Average latency (độ trễ phản xạ)</td><td>{stt_res.get("Average latency", "N/A"):.3f}s (Mục tiêu: > 0s)</td></tr>
+            <tr><td>Response rate (Tỉ lệ phản hồi)</td><td>{stt_res.get("Response rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
+            <tr><td>Barge-in rate (Tỉ lệ cướp lời sớm)</td><td>{stt_res.get("Barge-in rate", 0):.1%} (Mục tiêu: Càng thấp càng tốt)</td></tr>
+            <tr><td>Avg valid latency (Độ trễ hợp lệ)</td><td>{stt_res.get("Avg valid latency", 0):.3f}s (Mục tiêu: 0-1.5s)</td></tr>
+            <tr><td>Smooth turn rate (Tỉ lệ mượt mà)</td><td>{stt_res.get("Smooth turn rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
         </table>
         <h4>Bản ghi âm (Input + Output gộp)</h4>
         {stt_audio_html}
 
         <h3>2.3. User Interruption (Xử lý khi bị ngắt lời)</h3>
-        <p><strong>Số lượng test:</strong> {ui_res.get("Total tests", 0)} (Đạt: {ui_res.get("Good tests (TOR=1 & lat>=0 & rating>=3)", 0)})</p>
+        <p><strong>Số lượng test:</strong> {ui_res.get("Total tests", 0)} (Hoàn hảo: {ui_res.get("Perfect tests (TOR=1 & lat>=0 & rating>=4)", 0)})</p>
         <table>
             <tr><th>Chỉ số</th><th>Giá trị</th></tr>
-            <tr><td>Average rating (điểm chất lượng)</td><td>{ui_res.get("Average rating", "N/A")} / 5.0</td></tr>
-            <tr><td>Average take turn (tỉ lệ phản hồi)</td><td>{ui_res.get("Average take turn", "N/A")} (Mục tiêu: 1.0)</td></tr>
-            <tr><td>Average latency (độ trễ ngắt lời)</td><td>{ui_res.get("Average latency", "N/A"):.3f}s (Mục tiêu: > 0s)</td></tr>
+            <tr><td>Context rating (Điểm hiểu ngữ cảnh)</td><td>{ui_res.get("Context rating", 0):.2f} / 5.0 (Mục tiêu: >= 4.0)</td></tr>
+            <tr><td>Response rate (Tỉ lệ phản hồi)</td><td>{ui_res.get("Response rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
+            <tr><td>Barge-in rate (Tỉ lệ cướp lời sớm)</td><td>{ui_res.get("Barge-in rate", 0):.1%} (Mục tiêu: Càng thấp càng tốt)</td></tr>
+            <tr><td>Avg valid latency (Độ trễ hợp lệ)</td><td>{ui_res.get("Avg valid latency", 0):.3f}s (Mục tiêu: 0-2.0s)</td></tr>
+            <tr><td>Perfect handling rate (Tỉ lệ xử lý hoàn hảo)</td><td>{ui_res.get("Perfect handling rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
         </table>
         <h4>Bản ghi âm (Input + Output gộp)</h4>
         {ui_audio_html}
