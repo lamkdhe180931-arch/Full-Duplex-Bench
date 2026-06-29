@@ -90,18 +90,29 @@ def mix_combined_audio(input_wav: str, output_wav: str, combined_wav: str):
 class SynchronizedRecorder:
     """Records only Gemini response audio, then stops dynamically."""
 
-    def __init__(self, out_sr: int, outfile: str, session_start_time: float):
+    def __init__(self, out_sr: int, outfile: str):
         self.out_sr = out_sr
         self.queue: asyncio.Queue[Tuple[float, bytes]] = asyncio.Queue()
         self.outfile = outfile
         self.running = True
-        self.session_start_time = session_start_time
+        self.timeline_start_time = None
         self.first_audio_wall_sec = None
         self.last_audio_wall_sec = None
         self.samples_written = 0
 
+    def set_timeline_start(self, wall_time: float):
+        if self.timeline_start_time is None:
+            self.timeline_start_time = wall_time
+
+    def elapsed(self) -> float:
+        if self.timeline_start_time is None:
+            return 0.0
+        return time.time() - self.timeline_start_time
+
     async def add(self, pcm: bytes):
-        now = time.time() - self.session_start_time
+        if self.timeline_start_time is None:
+            self.set_timeline_start(time.time())
+        now = self.elapsed()
         if self.first_audio_wall_sec is None:
             self.first_audio_wall_sec = now
         self.last_audio_wall_sec = now
@@ -190,7 +201,6 @@ async def run_session(
     chunks: List[Tuple[bytes, float]],
     start_idx: int,
     recorder: SynchronizedRecorder,
-    session_start_time: float,
     max_response_sec: float,
 ) -> int:
     """
@@ -224,6 +234,8 @@ async def run_session(
                 
                 # REMOVED: Client-side Noise Gate
                 
+                if recorder.timeline_start_time is None:
+                    recorder.set_timeline_start(time.time())
                 await sess.send_realtime_input(
                     audio={"data": chunk, "mime_type": "audio/pcm"}
                 )
@@ -248,7 +260,7 @@ async def run_session(
                 
                 # INTERRUPT
                 if getattr(sc, "interrupted", False):
-                    current_time = time.time() - session_start_time
+                    current_time = recorder.elapsed()
                     print(f"[DEBUG][Session {session_id}] *** INTERRUPTED at t={current_time:.2f}s, chunk {idx} ***")
                     recorder.interrupt()
                     was_interrupted = True
@@ -307,12 +319,12 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     sent_audio_duration = sum(chunk_duration for _chunk, chunk_duration in chunks)
     print(f"[INFO] Loaded {total_chunks} chunks, duration: {duration:.2f}s")
 
-    # Track overall start time for synchronization
-    session_start_time = time.time()
+    # Track setup time separately; timeline 0 starts when the first input chunk is sent.
+    process_start_time = time.time()
 
     # Record compact response first, then expand output.wav into a timeline-aligned agent stem.
     raw_output_wav = str(Path(output_wav).with_name(f"{Path(output_wav).stem}.raw_response.wav"))
-    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, raw_output_wav, session_start_time)
+    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, raw_output_wav)
     recorder_task = asyncio.create_task(recorder.run())
 
     # Create client
@@ -328,7 +340,7 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
             await asyncio.sleep(2.0)
         try:
             new_idx = await run_session(
-                client, session_id, chunks, chunk_idx, recorder, session_start_time, max_response_sec
+                client, session_id, chunks, chunk_idx, recorder, max_response_sec
             )
         except Exception as e:
             print(f"[ERROR] Session {session_id}: {e}")
@@ -361,6 +373,8 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
         "chunk_count": total_chunks,
         "chunk_size_samples": CHUNK_SIZE,
         "send_sample_rate": SEND_SAMPLE_RATE,
+        "timeline_anchor": "first_input_chunk_sent",
+        "pre_timeline_setup_sec": None if recorder.timeline_start_time is None else recorder.timeline_start_time - process_start_time,
         "response_start_sec": response_start_sec,
         "response_last_audio_sec": recorder.last_audio_wall_sec,
         "response_latency_sec": None if response_start_sec is None else response_start_sec - duration,
