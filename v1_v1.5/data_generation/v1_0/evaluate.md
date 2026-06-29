@@ -2,6 +2,25 @@
 
 Tài liệu này mô tả cách tạo dữ liệu mô phỏng v1.0, cách chạy Gemini để sinh phản hồi, cách chuyển phản hồi audio thành transcript có timestamp, và cách đọc các chỉ số đánh giá.
 
+input.wav  = user stem từ 0s
+output.wav = agent stem từ 0s, có silence trước lúc Gemini bắt đầu nói
+combined.wav = input.wav + output.wav overlay tại 0s
+output.json = ASR timestamp theo timeline chung, không cộng offset nữa
+
+
+Đọc input.wav.
+
+Resample input.wav về 16kHz mono.
+
+Chia input.wav thành các chunk audio.
+
+Tạo recorder để sẵn sàng ghi Gemini response.
+
+Kết nối Gemini Live API.
+
+Sender chuẩn bị gửi chunk đầu tiên của input.wav.
+
+Ngay trước khi gửi chunk đầu tiên, set mốc timeline:
 ## 1. Mục tiêu benchmark
 
 Benchmark v1.0 dùng để kiểm tra năng lực hội thoại full-duplex của agent âm thanh trong ba tình huống cơ bản:

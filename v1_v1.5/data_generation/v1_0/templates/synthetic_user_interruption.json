@@ -3,7 +3,7 @@
     "id": "interrupt_001",
     "context": "Hãy lên cho tôi một lịch trình du lịch Sapa trong ba ngày hai đêm.",
     "interrupt": "À từ từ, tôi đổi ý rồi, chuyển lịch trình sang đi Phú Quốc nhé.",
-    "interrupt_delay_sec": 2.5,
-    "description": "Đổi hoàn toàn chủ đề sau 2.5s"
+    "interrupt_delay_sec": 4.5,
+    "description": "Đổi hoàn toàn chủ đề sau 4.5s"
   }
 ]
