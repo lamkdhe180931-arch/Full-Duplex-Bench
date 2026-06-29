@@ -27,6 +27,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from glob import glob
+from timeline_audio import align_response_stem_to_timeline
 
 # Load environment variables
 load_dotenv()
@@ -76,7 +77,9 @@ def mix_combined_audio(input_wav: str, output_wav: str, combined_wav: str):
     position_ms = 0
     if os.path.exists(timing_path):
         with open(timing_path, "r", encoding="utf-8") as tf:
-            position_ms = int((json.load(tf).get("response_start_sec") or 0) * 1000)
+            timing = json.load(tf)
+            if not timing.get("output_timeline_aligned"):
+                position_ms = int((timing.get("response_start_sec") or 0) * 1000)
 
     total_ms = max(len(sound_in), position_ms + len(sound_out))
     base = AudioSegment.silent(duration=total_ms, frame_rate=16000).set_channels(2)
@@ -307,8 +310,9 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     # Track overall start time for synchronization
     session_start_time = time.time()
 
-    # Create recorder. output.wav contains only actual Gemini response audio.
-    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, output_wav, session_start_time)
+    # Record compact response first, then expand output.wav into a timeline-aligned agent stem.
+    raw_output_wav = str(Path(output_wav).with_name(f"{Path(output_wav).stem}.raw_response.wav"))
+    recorder = SynchronizedRecorder(RECEIVE_SAMPLE_RATE, raw_output_wav, session_start_time)
     recorder_task = asyncio.create_task(recorder.run())
 
     # Create client
@@ -343,6 +347,14 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     await recorder_task
 
     response_start_sec = recorder.first_audio_wall_sec
+    align_response_stem_to_timeline(
+        raw_output_wav,
+        output_wav,
+        response_start_sec=response_start_sec,
+        sample_rate=RECEIVE_SAMPLE_RATE,
+        min_duration_sec=duration,
+    )
+    output_duration_sec = max(duration, (response_start_sec or 0.0) + recorder.response_duration_sec)
     timing = {
         "input_duration_sec": duration,
         "sent_audio_duration_sec": sent_audio_duration,
@@ -355,6 +367,8 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
         "response_duration_sec": recorder.response_duration_sec,
         "response_end_sec": None if response_start_sec is None else response_start_sec + recorder.response_duration_sec,
         "response_wall_span_sec": None if response_start_sec is None or recorder.last_audio_wall_sec is None else recorder.last_audio_wall_sec - response_start_sec,
+        "output_duration_sec": output_duration_sec,
+        "output_timeline_aligned": True,
         "max_response_sec": max_response_sec,
         "output_sample_rate": RECEIVE_SAMPLE_RATE,
     }
@@ -367,6 +381,8 @@ async def process_single_file(input_wav: str, output_wav: str, overwrite: bool =
     # Cleanup
     if os.path.exists(wav16k_path):
         os.remove(wav16k_path)
+    if os.path.exists(raw_output_wav):
+        os.remove(raw_output_wav)
 
     print(f"[INFO] Saved {output_wav}")
     return True

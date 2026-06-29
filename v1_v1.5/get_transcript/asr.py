@@ -88,9 +88,13 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
         # Default offset maps output.wav timestamps back to the original input timeline.
         offset = 0.0
         timing_path = os.path.join(os.path.dirname(audio_path), "inference_timing.json")
+        output_timeline_aligned = False
         if os.path.exists(timing_path):
             with open(timing_path, "r", encoding="utf-8") as f:
-                offset = json.load(f).get("response_start_sec") or 0.0
+                timing = json.load(f)
+                output_timeline_aligned = bool(timing.get("output_timeline_aligned"))
+                if not output_timeline_aligned:
+                    offset = timing.get("response_start_sec") or 0.0
 
         interrupt_end_time = None
         if task == "user_interruption":
