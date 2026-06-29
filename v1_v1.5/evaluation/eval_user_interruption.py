@@ -3,6 +3,7 @@ import re
 import os
 import argparse
 from tqdm import tqdm
+import time
 
 turn_duration_threshold = 1
 turn_num_words_threshold = 3
@@ -140,6 +141,9 @@ def eval_user_interruption(root_dir, client):
                 """
 
                 prediction = generate_gemini_rating(client, system_msg, user_msg)
+                
+                # Tránh lỗi Rate Limit (429) của gói API Free Tier (giới hạn 5 req/phút)
+                time.sleep(15)
 
                 print(prediction)
                 parsed_output = parse_output(prediction + "\n")
