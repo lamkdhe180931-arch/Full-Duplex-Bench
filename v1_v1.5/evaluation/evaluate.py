@@ -212,7 +212,7 @@ Tuyệt đối KHÔNG cần in lại các con số, chỉ đưa ra KẾT LUẬN 
             <tr><th>Chỉ số</th><th>Giá trị</th></tr>
             <tr><td>Silence rate (Tỉ lệ giữ im lặng)</td><td>{ph_res.get("Silence rate", 0):.1%} (Mục tiêu: Càng cao càng tốt)</td></tr>
             <tr><td>Barge-in rate (Tỉ lệ cướp lời sai)</td><td>{ph_res.get("Barge-in rate", 0):.1%} (Mục tiêu: Càng thấp càng tốt)</td></tr>
-            <tr><td>Avg barge-in duration (Độ dài lảm nhảm)</td><td>{ph_res.get("Avg barge-in duration", 0):.2f}s (Mục tiêu: Càng ngắn càng tốt)</td></tr>
+            <tr><td>Avg valid latency (Độ trễ hợp lệ)</td><td>{ph_res.get("Avg valid latency", 0):.3f}s (Mục tiêu: 0-1.5s)</td></tr>
         </table>
         <h4>Bản ghi âm (Input + Output gộp)</h4>
         {ph_audio_html}

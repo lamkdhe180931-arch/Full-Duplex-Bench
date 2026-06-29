@@ -26,11 +26,12 @@ def eval_pause_handling(data_dir):
                 audio_output_files.append(os.path.join(data_dir, folder, file_o))
 
     take_turn_list = []
-    barge_in_durations = []
+    latency_list = []
 
     for audio_output_file in tqdm(audio_output_files, desc="evaluate"):
 
         TOR = None
+        latency = None
         duration = 0.0
 
         # if audio_output_file is not found, raise an error
@@ -41,33 +42,57 @@ def eval_pause_handling(data_dir):
             output_data = json.load(f)
             segments_cw = output_data["chunks"]
 
+        # Load pause.json to find when the pause ends
+        pause_file = os.path.join(os.path.dirname(audio_output_file), "pause.json")
+        pause_end_time = float("inf")
+        if os.path.exists(pause_file):
+            with open(pause_file, "r") as f:
+                pause_data = json.load(f)
+            pause_end_time = pause_data[0]["timestamp"][1]
+
         # if no transcription from CrisperWhisper， means model does not take turn
         if len(segments_cw) == 0:
             TOR = 0
         else:
-            if segments_cw[-1]["timestamp"][-1] == None:
-                duration = (
-                    segments_cw[-1]["timestamp"][0] - segments_cw[0]["timestamp"][0]
-                )
-            else:
-                duration = (
-                    segments_cw[-1]["timestamp"][-1] - segments_cw[0]["timestamp"][0]
-                )
-            if duration < turn_duration_threshold:
-                if len(segments_cw) <= turn_num_words_threshold:
-                    TOR = 0
+            output_start_time = segments_cw[0]["timestamp"][0]
+            if output_start_time < pause_end_time:
+                # Phản hồi trước khi khoảng lặng kết thúc (Cướp lời sai)
+                if segments_cw[-1]["timestamp"][-1] == None:
+                    duration = (
+                        segments_cw[-1]["timestamp"][0] - segments_cw[0]["timestamp"][0]
+                    )
+                else:
+                    duration = (
+                        segments_cw[-1]["timestamp"][-1] - segments_cw[0]["timestamp"][0]
+                    )
+                if duration < turn_duration_threshold:
+                    if len(segments_cw) <= turn_num_words_threshold:
+                        TOR = 0
+                    else:
+                        TOR = 1
                 else:
                     TOR = 1
             else:
-                TOR = 1
+                # Phản hồi ngoan ngoãn sau khi khoảng lặng đã qua (hoặc ở cuối bài)
+                TOR = 0
+                
+                # Tính độ trễ (latency) cho lần trả lời đúng luật này
+                timing_file = os.path.join(os.path.dirname(audio_output_file), "inference_timing.json")
+                if os.path.exists(timing_file):
+                    with open(timing_file, "r") as f:
+                        timing_data = json.load(f)
+                    input_duration_sec = timing_data.get("input_duration_sec")
+                    if input_duration_sec is not None:
+                        latency = output_start_time - input_duration_sec
 
         take_turn_list.append(TOR)
-        if TOR == 1:
-            barge_in_durations.append(duration)
+        if TOR == 0 and latency is not None:
+            latency_list.append(latency)
 
     average_take_turn = sum(take_turn_list) / len(take_turn_list) if take_turn_list else 0.0
     silence_rate = 1.0 - average_take_turn
-    avg_barge_in_dur = sum(barge_in_durations) / len(barge_in_durations) if barge_in_durations else 0.0
+
+    avg_latency = sum(latency_list) / len(latency_list) if latency_list else 0.0
 
     print("---------------------------------------------------")
     print("[Result: Pause Handling (Xử lý khoảng lặng)]")
@@ -77,16 +102,14 @@ def eval_pause_handling(data_dir):
     status_tor = "tốt" if average_take_turn < 0.3 else "kém"
     print(f"2. Barge-in rate (Tỉ lệ cướp lời sai): {average_take_turn:.1%} ({status_tor}) - Càng thấp càng tốt")
     
-    if barge_in_durations:
-        print(f"3. Avg barge-in duration (Độ dài lảm nhảm trung bình khi sai): {avg_barge_in_dur:.2f}s - Càng ngắn càng tốt")
-    else:
-        print("3. Avg barge-in duration: Không có lỗi cướp lời! (Tuyệt vời)")
+    status_lat = "tốt" if 0 <= avg_latency <= 1.5 else "chậm"
+    print(f"3. Avg valid latency (Độ trễ trả lời hợp lệ ở cuối câu): {avg_latency:.3f}s ({status_lat}) - Càng sát 0 càng tốt")
     print("---------------------------------------------------")
     
     return {
         "Silence rate": silence_rate,
         "Barge-in rate": average_take_turn,
-        "Avg barge-in duration": avg_barge_in_dur,
+        "Avg valid latency": avg_latency,
         "Total tests": len(take_turn_list),
         "Perfect tests (TOR=0)": take_turn_list.count(0)
     }
