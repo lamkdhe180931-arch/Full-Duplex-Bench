@@ -167,7 +167,7 @@ def get_time_aligned_transcription(data_path, task, audio_name="output.wav"):
                 sf.write(tmp.name, waveform, sr)
                 
                 # Model 1: PhoWhisper
-                pred1 = pipe_pho(tmp.name, return_timestamps="word", generate_kwargs={"language": "vietnamese", "condition_on_previous_text": False})
+                pred1 = pipe_pho(tmp.name, return_timestamps="word", generate_kwargs={"language": "vietnamese", "condition_on_prev_tokens": False})
                 out1 = format_whisper_chunks(pred1, offset, interrupt_end_time)
                 
                 # Model 2: Whisper-v3
