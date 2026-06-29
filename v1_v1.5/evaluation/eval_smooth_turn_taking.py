@@ -93,6 +93,11 @@ def eval_smooth_turn_taking(data_dir):
     print("Average take turn: ", average_take_turn)
     print("Average latency: ", average_latency)
     print("---------------------------------------------------")
+    
+    return {
+        "Average take turn": average_take_turn,
+        "Average latency": average_latency
+    }
 
 
 if __name__ == "__main__":

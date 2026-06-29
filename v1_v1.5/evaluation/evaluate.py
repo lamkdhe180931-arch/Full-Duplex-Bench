@@ -22,6 +22,7 @@ def main():
             "user_interruption",
             "behavior",
             "general_before_after",
+            "v1_all_with_summary",
         ],
         help="Evaluation task to perform.",
     )
@@ -55,6 +56,56 @@ def main():
             raise ValueError("GEMINI_API_KEY not found in environment.")
         client = genai.Client(api_key=gemini_api_key)
         eval_user_interruption(args.root_dir, client)
+
+    elif args.task == "v1_all_with_summary":
+        from eval_pause_handling import eval_pause_handling
+        from eval_smooth_turn_taking import eval_smooth_turn_taking
+        from eval_user_interruption import eval_user_interruption
+        from google import genai
+        import json
+
+        if not gemini_api_key:
+            raise ValueError("GEMINI_API_KEY not found in environment.")
+        client = genai.Client(api_key=gemini_api_key)
+
+        print("\n=== RUNNING ALL V1 BENCHMARKS ===")
+        print("1. Running Pause Handling...")
+        ph_res = eval_pause_handling(os.path.join(args.root_dir, "synthetic_pause_handling"))
+        
+        print("\n2. Running Candor Turn Taking...")
+        stt_res = eval_smooth_turn_taking(os.path.join(args.root_dir, "candor_turn_taking"))
+        
+        print("\n3. Running User Interruption...")
+        ui_res = eval_user_interruption(os.path.join(args.root_dir, "synthetic_user_interruption"), client)
+
+        print("\n=== AGGREGATING RESULTS ===")
+        summary_prompt = f"""
+Dưới đây là điểm benchmark âm thanh song công (Full-Duplex V1) của agent.
+1. Pause Handling (Xử lý khoảng lặng):
+{json.dumps(ph_res, indent=2)}
+
+2. Smooth Turn Taking (Luân phiên lượt lời mượt mà):
+{json.dumps(stt_res, indent=2)}
+
+3. User Interruption (Xử lý khi bị ngắt lời):
+{json.dumps(ui_res, indent=2)}
+
+Dựa vào các chỉ số kỹ thuật trên (như độ trễ latency âm hay dương, take turn rate cao hay thấp, rating chất lượng xử lý ngắt lời ra sao), hãy viết 1 ĐOẠN ĐÁNH GIÁ (khoảng 3-5 câu) BẰNG TIẾNG VIỆT thật ngắn gọn, dễ hiểu tóm tắt lại "Agent này hoạt động tốt hay kém ở điểm nào, phản xạ ra sao, có bị dính lỗi cướp lời không, trả lời khi bị ngắt lời có mượt không?". Tuyệt đối không cần in lại các con số, chỉ nói về CHẤT LƯỢNG tương ứng với các con số đó.
+"""
+        print("Đang gửi số liệu cho Gemini để viết tóm tắt đánh giá...")
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=summary_prompt
+            )
+            print("\n===================================================")
+            print("[ BẢN TÓM TẮT ĐÁNH GIÁ (Bởi Gemini) ]")
+            print("---------------------------------------------------")
+            print(response.text.strip())
+            print("===================================================\n")
+        except Exception as e:
+            print(f"[ERROR] Không thể lấy tóm tắt từ Gemini: {e}")
+
 
     elif args.task == "general_before_after":
         from eval_general_before_after import eval_general_all_split

@@ -178,12 +178,22 @@ def eval_user_interruption(root_dir, client):
 
             break
 
+    avg_rating = sum(score_list) / len(score_list) if len(score_list) > 0 else 0.0
+    avg_tor = sum(take_turn_list) / len(take_turn_list) if len(take_turn_list) > 0 else 0.0
+    avg_latency = sum(latency_list) / len(latency_list) if len(latency_list) > 0 else 0.0
+
     print("---------------------------------------------------")
     print("[Result]")
-    print("Average rating: ", sum(score_list) / len(score_list) if len(score_list) > 0 else 0.0)
-    print("Average take turn: ", sum(take_turn_list) / len(take_turn_list) if len(take_turn_list) > 0 else 0.0)
-    print("Average latency: ", sum(latency_list) / len(latency_list) if len(latency_list) > 0 else 0.0)
+    print("Average rating: ", avg_rating)
+    print("Average take turn: ", avg_tor)
+    print("Average latency: ", avg_latency)
     print("---------------------------------------------------")
+    
+    return {
+        "Average rating": avg_rating,
+        "Average take turn": avg_tor,
+        "Average latency": avg_latency
+    }
 
 
 if __name__ == "__main__":

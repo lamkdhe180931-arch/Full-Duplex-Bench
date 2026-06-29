@@ -67,6 +67,8 @@ def eval_pause_handling(data_dir):
     print("[Result]")
     print("Average take turn: ", average_take_turn)
     print("---------------------------------------------------")
+    
+    return {"Average take turn": average_take_turn}
 
 
 if __name__ == "__main__":
